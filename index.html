@@ -169,14 +169,23 @@
     </div>
     <label>Your name (for audit trail)</label>
     <input id="fUser" placeholder="e.g. J. Smith" autocapitalize="words">
-    <button id="btnCreate">Create check</button>
-  </div>
+    <div class="btns">
+      <button id="btnCreate">Create check</button>
+      <button class="ghost hide" id="btnCancelNew">Cancel</button>
+    </div>
 
   <!-- ACTIVE CHECK -->
   <div class="card hide" id="checkCard">
     <h2>Active check</h2>
     <p class="hint">Foundation is live. Task table and dashboards come in later phases.</p>
     <div id="checkInfo"></div>
+    <div id="switchWrap" class="hide">
+      <label>Switch check</label>
+      <select id="fSwitch"></select>
+    </div>
+    <div class="btns">
+      <button class="ghost sm" id="btnNewCheck">New check</button>
+    </div>
   </div>
 
   <!-- TASKS -->
@@ -498,42 +507,55 @@ async function boot(){
 }
 
 function loadCheck(){
-  const rows = q('SELECT * FROM aircraft_checks ORDER BY check_id DESC LIMIT 1');
-
-  if (rows.length === 0){
+  const all = q('SELECT * FROM aircraft_checks ORDER BY check_id DESC');
+  if (all.length === 0){
     $('setupCard').classList.remove('hide');
+    $('btnCancelNew').classList.add('hide');
     $('checkCard').classList.add('hide');
     $('importCard').classList.add('hide');
     $('tasksCard').classList.add('hide');
     $('dashCard').classList.add('hide');
     $('hdrSub').textContent = 'no check yet';
-    if (!$('fStart').value) $('fStart').value = new Date().toISOString().slice(0,10);
+    if (!$('fStart').value) $('fStart').value = today();
     if (currentUser) $('fUser').value = currentUser;
     return;
   }
+  const wanted = parseInt(metaGet('active_check') || '0', 10);
+  currentCheck = all.find(c => c.check_id === wanted) || all[0];
+  metaSet('active_check', currentCheck.check_id);
 
-  currentCheck = rows[0];
   $('setupCard').classList.add('hide');
   $('checkCard').classList.remove('hide');
   showImportCardIfReady();
-  showTasks();
-  showDash();
+
+  // switcher — only shown when there's more than one check
+  const sw = $('fSwitch');
+  sw.innerHTML = all.map(c =>
+    '<option value="' + c.check_id + '"' +
+    (c.check_id === currentCheck.check_id ? ' selected' : '') + '>' +
+    esc(c.tail_number + ' · ' + (c.check_type || '—') + ' · ' +
+        (c.start_date ? c.start_date.split('-').reverse().join('/') : 'no date')) +
+    '</option>').join('');
+  $('switchWrap').classList.toggle('hide', all.length < 2);
 
   const dmy = s => s ? s.split('-').reverse().join('/') : '—';
   const days = currentCheck.start_date
     ? Math.floor((Date.now() - new Date(currentCheck.start_date + 'T00:00:00').getTime()) / 86400000) + 1
     : null;
-
   $('checkInfo').innerHTML =
     '<div class="kv"><span>Tail number</span><span>' + currentCheck.tail_number + '</span></div>' +
     '<div class="kv"><span>Check type</span><span>' + (currentCheck.check_type || '—') + '</span></div>' +
     '<div class="kv"><span>Start date</span><span>' + dmy(currentCheck.start_date) + '</span></div>' +
     '<div class="kv"><span>Planned end</span><span>' + dmy(currentCheck.planned_end_date) + '</span></div>' +
-    '<div class="kv"><span>Day of check</span><span>' + (days !== null ? 'Day ' + days : '—') + '</span></div>' +
+    '<div class="kv"><span>Day of check</span><span>' +
+      (days === null ? '—' : (days > 0 ? 'Day ' + days : 'starts in ' + (1 - days) + ' days')) +
+      '</span></div>' +
     '<div class="kv"><span>Status</span><span>' + currentCheck.status + '</span></div>' +
     '<div class="kv"><span>Updating as</span><span>' + (currentUser || 'not set') + '</span></div>';
-
   $('hdrSub').textContent = currentCheck.tail_number + ' · ' + currentCheck.check_type;
+
+  showTasks();
+  showDash();
 }
 
 function refreshCounts(){
@@ -783,6 +805,7 @@ $('btnCreate').addEventListener('click', async ()=>{
   try{
     db.run('INSERT INTO aircraft_checks (tail_number, check_type, start_date, planned_end_date) VALUES (?,?,?,?)',
            [tail, type, start, end || null]);
+    metaSet('active_check', db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0]);
     if (user){
       currentUser = user;
       localStorage.setItem('acheck_user', user);
@@ -1192,6 +1215,36 @@ function showDash(){
   $('dashCard').classList.remove('hide');
   renderDash();
 }
+
+/* ---------- multi-check handling ---------- */
+$('btnNewCheck').addEventListener('click', ()=>{
+  $('setupCard').classList.remove('hide');
+  $('btnCancelNew').classList.remove('hide');
+  $('checkCard').classList.add('hide');
+  $('importCard').classList.add('hide');
+  $('tasksCard').classList.add('hide');
+  $('dashCard').classList.add('hide');
+  $('fStart').value = today();
+  $('fEnd').value = '';
+  if (currentUser) $('fUser').value = currentUser;
+  $('setupCard').scrollIntoView({ behavior:'smooth', block:'start' });
+});
+
+$('btnCancelNew').addEventListener('click', ()=>{
+  $('setupCard').classList.add('hide');
+  loadCheck();
+});
+
+$('fSwitch').addEventListener('change', ()=>{
+  metaSet('active_check', $('fSwitch').value);
+  // reset task filters so stale values from the previous check don't hide rows
+  ['flStatus','flLog','flCode'].forEach(id => { const e = $(id); if (e) e.value = ''; });
+  const ft = $('flText'); if (ft) ft.value = '';
+  tLimit = 150;
+  $('importedInfo').classList.add('hide');
+  save();
+  loadCheck();
+});
 boot();
 </script>
 </body>
