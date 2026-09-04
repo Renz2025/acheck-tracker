@@ -263,17 +263,23 @@ CREATE TABLE IF NOT EXISTS tasks (
   task_id INTEGER PRIMARY KEY AUTOINCREMENT,
   check_id INTEGER NOT NULL REFERENCES aircraft_checks(check_id),
   task_type TEXT NOT NULL CHECK (task_type IN ('routine','non_routine')),
-  task_card_ref TEXT,
-  ata_chapter TEXT,
-  zone TEXT,
+  task_no TEXT,
+  sequence TEXT,
   description TEXT NOT NULL,
-  source TEXT,
-  priority TEXT,
-  mel_cdl_reference TEXT,
+  source_status TEXT,
+  quoted TEXT,
+  est_next_due TEXT,
+  interval_spec TEXT,
+  task_code TEXT,
+  next_due TEXT,
   estimated_hours REAL,
+  logistics_status TEXT,
+  task_status TEXT DEFAULT 'Not Started',
+  comments TEXT,
+  mel_cdl_reference TEXT,
+  priority TEXT,
   assigned_to TEXT,
   linked_task_id INTEGER REFERENCES tasks(task_id),
-  status TEXT DEFAULT 'Not Started',
   created_at TEXT DEFAULT CURRENT_TIMESTAMP,
   created_by TEXT
 );
@@ -302,7 +308,8 @@ CREATE TABLE IF NOT EXISTS daily_snapshot (
 
 CREATE INDEX IF NOT EXISTS idx_tasks_check   ON tasks(check_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_type    ON tasks(task_type);
-CREATE INDEX IF NOT EXISTS idx_tasks_status  ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_status  ON tasks(task_status);
+CREATE INDEX IF NOT EXISTS idx_tasks_code    ON tasks(task_code);
 CREATE INDEX IF NOT EXISTS idx_hist_task     ON status_history(task_id);
 CREATE INDEX IF NOT EXISTS idx_snap_check    ON daily_snapshot(check_id, snapshot_date);
 `;
@@ -345,9 +352,16 @@ async function boot(){
       setDb('ok','New database created');
     }
 
-    db.run('PRAGMA foreign_keys = ON;');
+        db.run('PRAGMA foreign_keys = ON;');
+    const wasMigrated = migrate();
     db.run(SCHEMA);
-    if (!metaGet('schema_version')) metaSet('schema_version', SCHEMA_VERSION);
+    metaSet('schema_version', SCHEMA_VERSION);
+    if (wasMigrated){
+      const b = $('errBox');
+      b.className = 'banner warn show';
+      b.textContent = 'Task table upgraded to the new column set. ' +
+                      'Your check is intact, but please re-import your task list.';
+    }
 
     currentUser = localStorage.getItem('acheck_user') || '';
 
@@ -414,14 +428,20 @@ function refreshCounts(){
 
 /* ---------- Phase 2: Excel import ---------- */
 const TASK_FIELDS = [
-  { key: 'task_card_ref',    label: 'Task card ref',      required: false },
-  { key: 'ata_chapter',      label: 'ATA chapter',        required: false },
-  { key: 'zone',             label: 'Zone',                required: false },
-  { key: 'description',      label: 'Description',        required: true  },
-  { key: 'estimated_hours',  label: 'Estimated hours',    required: false },
-  { key: 'assigned_to',      label: 'Assigned to',        required: false }
+  { key:'task_no',          label:'Task no',            required:false },
+  { key:'sequence',         label:'Sequence',           required:false },
+  { key:'description',      label:'Description',        required:true  },
+  { key:'source_status',    label:'Status',             required:false },
+  { key:'quoted',           label:'Quoted Y/N',         required:false },
+  { key:'est_next_due',     label:'Estimated next due', required:false },
+  { key:'interval_spec',    label:'Interval',           required:false },
+  { key:'task_code',        label:'Task code',          required:false },
+  { key:'next_due',         label:'Next due',           required:false },
+  { key:'estimated_hours',  label:'Estimated hours',    required:false },
+  { key:'logistics_status', label:'Logistics status',   required:false },
+  { key:'task_status',      label:'Task status',        required:false },
+  { key:'comments',         label:'Comments',           required:false }
 ];
-
 let wb = null;
 let sheetRows = [];
 let sheetHeader = [];
@@ -466,16 +486,33 @@ function loadSheet(name){
 }
 
 function guessColumn(fieldKey){
-  const guesses = {
-    task_card_ref:   ['task card','card ref','task no','task number','ref','card no'],
-    ata_chapter:     ['ata','ata chapter','chapter'],
-    zone:            ['zone','area'],
-    description:     ['description','task description','task','details'],
-    estimated_hours: ['hours','est hours','estimated hours','mhrs','man hours','manhours'],
-    assigned_to:     ['assigned','tech','engineer','crew']
+    const guesses = {
+    task_no:          ['task no','task number','task #','taskno'],
+    sequence:         ['sequence','seq'],
+    description:      ['description','desc','task description'],
+    source_status:    ['status'],
+    quoted:           ['quoted'],
+    est_next_due:     ['estimated next due','est next due','est. next due'],
+    interval_spec:    ['interval'],
+    task_code:        ['task code','code'],
+    next_due:         ['next due'],
+    estimated_hours:  ['estimated hours','est hours','hours','mhrs','man hours'],
+    logistics_status: ['logistics status','logistics','logistic'],
+    task_status:      ['task status'],
+    comments:         ['comments','comment','remarks','notes']
   };
   const opts = guesses[fieldKey] || [];
-  return sheetHeader.findIndex(h => opts.some(g => h.toLowerCase().includes(g)));
+    // Prefer the most specific header match so 'TASK STATUS' doesn't
+  // get claimed by the looser 'status' guess.
+  let best = -1, bestLen = -1;
+  sheetHeader.forEach((h,i)=>{
+    const hl = h.toLowerCase();
+    opts.forEach(g=>{
+      if (hl === g && g.length > bestLen){ best = i; bestLen = g.length + 100; }
+      else if (hl.includes(g) && g.length > bestLen){ best = i; bestLen = g.length; }
+    });
+  });
+  return best;
 }
 
 function renderMapping(){
@@ -530,6 +567,24 @@ $('btnCancelImport').addEventListener('click', ()=>{
   wb = null; sheetRows = []; sheetHeader = [];
 });
 
+function normDue(v){
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  // Excel serial date
+  if (/^\d{5}(\.\d+)?$/.test(s)){
+    const d = new Date(Date.UTC(1899,11,30) + parseFloat(s)*86400000);
+    if (!isNaN(d)) return d.toISOString().slice(0,10);
+  }
+  // dd/mm/yyyy or dd-mm-yy
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (m){
+    let y = +m[3]; if (y < 100) y += 2000;
+    return y + '-' + String(+m[2]).padStart(2,'0') + '-' + String(+m[1]).padStart(2,'0');
+  }
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  return s;  // hours/cycles etc. — keep verbatim
+}
+
 $('btnImport').addEventListener('click', async ()=>{
   const map = currentMapping();
   if (map.description < 0){ showErr('Description column must be mapped — it is required.'); return; }
@@ -542,26 +597,27 @@ $('btnImport').addEventListener('click', async ()=>{
     sheetRows.forEach(r=>{
       const desc = map.description >= 0 ? String(r[map.description] ?? '').trim() : '';
       if (!desc){ skipped++; return; }
-
-      const cardRef = map.task_card_ref >= 0 ? String(r[map.task_card_ref] ?? '').trim() || null : null;
-      const ata      = map.ata_chapter   >= 0 ? String(r[map.ata_chapter]   ?? '').trim() || null : null;
-      const zone     = map.zone          >= 0 ? String(r[map.zone]          ?? '').trim() || null : null;
-      const assigned = map.assigned_to   >= 0 ? String(r[map.assigned_to]   ?? '').trim() || null : null;
+      const g   = k => map[k] >= 0 ? (String(r[map[k]] ?? '').trim() || null) : null;
       let hours = null;
       if (map.estimated_hours >= 0){
         const n = parseFloat(String(r[map.estimated_hours]).replace(/[^\d.]/g,''));
         hours = isNaN(n) ? null : n;
       }
-
+      const ts = g('task_status') || 'Not Started';
       db.run(
-        'INSERT INTO tasks (check_id, task_type, task_card_ref, ata_chapter, zone, description, estimated_hours, assigned_to, status, created_by) ' +
-        "VALUES (?, 'routine', ?, ?, ?, ?, ?, ?, 'Not Started', ?)",
-        [currentCheck.check_id, cardRef, ata, zone, desc, hours, assigned, currentUser || null]
+        'INSERT INTO tasks (check_id, task_type, task_no, sequence, description, ' +
+        'source_status, quoted, est_next_due, interval_spec, task_code, next_due, ' +
+        'estimated_hours, logistics_status, task_status, comments, created_by) ' +
+        "VALUES (?, 'routine', ?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [currentCheck.check_id, g('task_no'), g('sequence'), desc,
+         g('source_status'), g('quoted'), normDue(g('est_next_due')),
+         g('interval_spec'), g('task_code'), normDue(g('next_due')),
+         hours, g('logistics_status'), ts, g('comments'), currentUser || null]
       );
       const taskId = db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
       db.run(
-        "INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?, 'Not Started', ?, 'Imported from task list')",
-        [taskId, currentUser || null]
+        "INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?,?,?,'Imported from task list')",
+        [taskId, ts, currentUser || null]
       );
       inserted++;
     });
@@ -639,6 +695,20 @@ $('btnWipe').addEventListener('click', async ()=>{
     showErr('Reset failed: ' + e.message);
   }
 });
+
+function migrate(){
+  // Detect the Phase-2 shape and rebuild. tasks/status_history only ever
+  // hold imported data, so dropping is safe — the check record survives.
+  let cols = [];
+  try { cols = q("PRAGMA table_info('tasks')").map(r => r.name); } catch(e){ return false; }
+  if (cols.length === 0) return false;            // fresh db, nothing to do
+  if (cols.includes('task_no')) return false;     // already migrated
+  db.run('PRAGMA foreign_keys = OFF;');
+  db.run('DROP TABLE IF EXISTS status_history;');
+  db.run('DROP TABLE IF EXISTS tasks;');
+  db.run('PRAGMA foreign_keys = ON;');
+  return true;
+}
 
 boot();
 </script>
