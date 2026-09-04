@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="A Check">
+<title>A Check Tracker</title>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a2027; --panel2:#222b34; --line:#2f3a45;
+    --txt:#e6edf3; --dim:#8b98a5; --accent:#4a9eff;
+    --ok:#3fb950; --warn:#d29922; --bad:#f85149;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  body{margin:0;background:var(--bg);color:var(--txt);
+       font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       padding-bottom:env(safe-area-inset-bottom)}
+  header{background:var(--panel);border-bottom:1px solid var(--line);
+         padding:14px 18px;position:sticky;top:0;z-index:20;
+         padding-top:calc(14px + env(safe-area-inset-top))}
+  header h1{margin:0;font-size:17px;font-weight:600;letter-spacing:.3px}
+  header .sub{color:var(--dim);font-size:12px;margin-top:3px}
+  main{padding:18px;max-width:900px;margin:0 auto}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+        padding:18px;margin-bottom:18px}
+  .card h2{margin:0 0 4px;font-size:15px;font-weight:600}
+  .card p.hint{margin:0 0 16px;color:var(--dim);font-size:13px}
+  label{display:block;font-size:12px;color:var(--dim);margin:14px 0 5px;
+        text-transform:uppercase;letter-spacing:.5px}
+  input,select{width:100%;padding:12px;background:var(--panel2);color:var(--txt);
+        border:1px solid var(--line);border-radius:8px;font-size:16px;font-family:inherit}
+  input:focus,select:focus{outline:none;border-color:var(--accent)}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  .row>div{flex:1;min-width:140px}
+  button{background:var(--accent);color:#fff;border:0;border-radius:8px;
+         padding:13px 20px;font-size:15px;font-weight:600;cursor:pointer;
+         font-family:inherit;margin-top:18px}
+  button:active{opacity:.75}
+  button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  button:disabled{opacity:.4}
+  .btns{display:flex;gap:10px;flex-wrap:wrap}
+  .status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--warn);flex:0 0 auto}
+  .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .kv{display:flex;justify-content:space-between;padding:9px 0;
+      border-bottom:1px solid var(--line);font-size:14px}
+  .kv:last-child{border-bottom:0}
+  .kv span:first-child{color:var(--dim)}
+  .banner{padding:12px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;display:none}
+  .banner.show{display:block}
+  .banner.err{background:#3d1518;border:1px solid var(--bad);color:#ffb3ae}
+  .banner.good{background:#12291a;border:1px solid var(--ok);color:#9fe0ab}
+  code{background:var(--panel2);padding:2px 6px;border-radius:4px;font-size:12px}
+  .hide{display:none}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>A Check Tracker</h1>
+  <div class="sub" id="hdrSub">Phase 1 · initialising…</div>
+</header>
+
+<main>
+  <div class="banner err" id="errBox"></div>
+  <div class="banner good" id="okBox"></div>
+
+  <!-- SETUP (shown when no check exists) -->
+  <div class="card hide" id="setupCard">
+    <h2>Create check</h2>
+    <p class="hint">One-off. Sets up the check this tracker follows.</p>
+    <div class="row">
+      <div>
+        <label>Tail number</label>
+        <select id="fTail">
+          <option>VH-8LI</option>
+          <option>VH-8CU</option>
+          <option>VH-VHP</option>
+          <option>VH-8CO</option>
+        </select>
+      </div>
+      <div>
+        <label>Check type</label>
+        <select id="fType">
+          <option>A Check</option>
+          <option>C Check</option>
+          <option>Weekly Checklist</option>
+          <option>Daily Checklist</option>
+          <option>Terminating Checklist</option>
+          <option>Other</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div><label>Start date</label><input type="date" id="fStart"></div>
+      <div><label>Planned end date</label><input type="date" id="fEnd"></div>
+    </div>
+    <label>Your name (for audit trail)</label>
+    <input id="fUser" placeholder="e.g. J. Smith" autocapitalize="words">
+    <button id="btnCreate">Create check</button>
+  </div>
+
+  <!-- ACTIVE CHECK -->
+  <div class="card hide" id="checkCard">
+    <h2>Active check</h2>
+    <p class="hint">Phase 1 foundation. Task import comes next.</p>
+    <div id="checkInfo"></div>
+  </div>
+
+  <!-- IMPORT TASK LIST -->
+  <div class="card hide" id="importCard">
+    <h2>Import task list</h2>
+    <p class="hint">Upload the A Check task list Excel file. Map its columns once below.</p>
+
+    <input type="file" id="fFile" accept=".xlsx,.xls,.csv">
+
+    <div id="importMapWrap" class="hide">
+      <label>Sheet</label>
+      <select id="fSheet"></select>
+
+      <div id="mapFields"></div>
+
+      <label>Preview (first 5 rows)</label>
+      <div style="overflow-x:auto">
+        <table id="tblPreview"><thead></thead><tbody></tbody></table>
+      </div>
+
+      <div class="btns">
+        <button id="btnImport">Import tasks</button>
+        <button class="ghost" id="btnCancelImport">Cancel</button>
+      </div>
+    </div>
+
+    <div class="hide" id="importedInfo" style="margin-top:14px"></div>
+  </div>
+
+    <!-- IMPORT TASK LIST -->
+  <div class="card hide" id="importCard">
+    <h2>Import task list</h2>
+    <p class="hint">Upload the A Check task list Excel file. Map its columns once below.</p>
+
+    <input type="file" id="fFile" accept=".xlsx,.xls,.csv">
+
+    <div id="importMapWrap" class="hide">
+      <label>Sheet</label>
+      <select id="fSheet"></select>
+
+      <div id="mapFields"></div>
+
+      <label>Preview (first 5 rows)</label>
+      <div style="overflow-x:auto">
+        <table id="tblPreview"><thead></thead><tbody></tbody></table>
+      </div>
+
+      <div class="btns">
+        <button id="btnImport">Import tasks</button>
+        <button class="ghost" id="btnCancelImport">Cancel</button>
+      </div>
+    </div>
+
+    <div class="hide" id="importedInfo" style="margin-top:14px"></div>
+  </div>
+
+  <div class="card">
+    <h2>Database</h2>
+    <p class="hint">Stored in this device's browser storage (IndexedDB).</p>
+    <div class="status"><span class="dot" id="dbDot"></span><span id="dbMsg">Loading sql.js…</span></div>
+    <table id="tblCounts">
+      <thead><tr><th>Table</th><th class="num">Rows</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="btns">
+      <button class="ghost" id="btnDl" disabled>Download .db backup</button>
+      <button class="ghost" id="btnWipe" disabled>Reset database</button>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.3/xlsx.full.min.js"></script>
+<script>
+/* ============================================================
+   A CHECK TRACKER — PHASE 1
+   sql.js (SQLite/WASM) + IndexedDB persistence
+   ============================================================ */
+
+const IDB_NAME = 'acheck-tracker';
+const IDB_STORE = 'sqlite';
+const IDB_KEY   = 'db-v1';
+const SCHEMA_VERSION = '1';
+
+let SQL = null;
+let db  = null;
+let currentCheck = null;
+let currentUser  = '';
+
+/* ---------- UI helpers ---------- */
+const $ = id => document.getElementById(id);
+function showErr(m){
+  const b=$('errBox'); b.textContent=m; b.classList.add('show');
+  $('okBox').classList.remove('show'); console.error(m);
+}
+function showOk(m){
+  const b=$('okBox'); b.textContent=m; b.classList.add('show');
+  $('errBox').classList.remove('show');
+  setTimeout(()=>b.classList.remove('show'),4000);
+}
+function setDb(state,msg){
+  $('dbDot').className='dot'+(state?' '+state:'');
+  $('dbMsg').textContent=msg;
+}
+
+/* ---------- IndexedDB ---------- */
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    const r = indexedDB.open(IDB_NAME,1);
+    r.onupgradeneeded = () => r.result.createObjectStore(IDB_STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror   = () => rej(r.error);
+  });
+}
+async function idbPut(bytes){
+  const conn = await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx = conn.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put(bytes, IDB_KEY);
+    tx.oncomplete = () => { conn.close(); res(); };
+    tx.onerror    = () => { conn.close(); rej(tx.error); };
+  });
+}
+async function idbGet(){
+  const conn = await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx = conn.transaction(IDB_STORE,'readonly');
+    const rq = tx.objectStore(IDB_STORE).get(IDB_KEY);
+    rq.onsuccess = () => { conn.close(); res(rq.result || null); };
+    rq.onerror   = () => { conn.close(); rej(rq.error); };
+  });
+}
+async function idbClear(){
+  const conn = await idbOpen();
+  return new Promise((res,rej)=>{
+    const tx = conn.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).delete(IDB_KEY);
+    tx.oncomplete = () => { conn.close(); res(); };
+    tx.onerror    = () => { conn.close(); rej(tx.error); };
+  });
+}
+
+/* ---------- persistence: call after EVERY write ---------- */
+let saveTimer = null;
+function save(){
+  return new Promise(res=>{
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async ()=>{
+      try{
+        await idbPut(db.export());
+        setDb('ok','Saved · '+new Date().toLocaleTimeString('en-AU'));
+      }catch(e){
+        setDb('bad','Save failed: '+e.message);
+        showErr('Could not save to device storage: '+e.message);
+      }
+      refreshCounts(); res();
+    }, 120);
+  });
+}
+
+/* ---------- schema ---------- */
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
+
+CREATE TABLE IF NOT EXISTS aircraft_checks (
+  check_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tail_number TEXT NOT NULL,
+  check_type TEXT,
+  start_date TEXT,
+  planned_end_date TEXT,
+  actual_end_date TEXT,
+  status TEXT DEFAULT 'In Progress',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS aircraft_checks (
+  check_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tail_number TEXT NOT NULL,
+  check_type TEXT,
+  start_date TEXT,
+  planned_end_date TEXT,
+  actual_end_date TEXT,
+  status TEXT DEFAULT 'In Progress',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tasks (
+  task_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  check_id INTEGER NOT NULL REFERENCES aircraft_checks(check_id),
+  task_type TEXT NOT NULL CHECK (task_type IN ('routine','non_routine')),
+  task_card_ref TEXT,
+  ata_chapter TEXT,
+  zone TEXT,
+  description TEXT NOT NULL,
+  source TEXT,
+  priority TEXT,
+  mel_cdl_reference TEXT,
+  estimated_hours REAL,
+  assigned_to TEXT,
+  linked_task_id INTEGER REFERENCES tasks(task_id),
+  status TEXT DEFAULT 'Not Started',
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  created_by TEXT
+);
+
+CREATE TABLE IF NOT EXISTS status_history (
+  history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  task_id INTEGER NOT NULL REFERENCES tasks(task_id),
+  status TEXT NOT NULL,
+  changed_by TEXT,
+  changed_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  notes TEXT
+);
+
+CREATE TABLE IF NOT EXISTS daily_snapshot (
+  snapshot_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  check_id INTEGER NOT NULL REFERENCES aircraft_checks(check_id),
+  snapshot_date TEXT,
+  not_started INTEGER,
+  in_progress INTEGER,
+  completed INTEGER,
+  on_hold INTEGER,
+  deferred INTEGER,
+  total_tasks INTEGER,
+  percent_complete REAL
+);
+
+CREATE INDEX IF NOT EXISTS idx_tasks_check   ON tasks(check_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_type    ON tasks(task_type);
+CREATE INDEX IF NOT EXISTS idx_tasks_status  ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_hist_task     ON status_history(task_id);
+CREATE INDEX IF NOT EXISTS idx_snap_check    ON daily_snapshot(check_id, snapshot_date);
+`;
+
+/* ---------- query helper ---------- */
+function q(sql, params=[]){
+  const stmt = db.prepare(sql);
+  stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+
+/* ---------- meta helpers ---------- */
+function metaGet(key){
+  const r = q('SELECT value FROM meta WHERE key = ?', [key]);
+  return r.length ? r[0].value : null;
+}
+function metaSet(key, value){
+  db.run('INSERT INTO meta (key,value) VALUES (?,?) ' +
+         'ON CONFLICT(key) DO UPDATE SET value = excluded.value', [key, String(value)]);
+}
+
+/* ---------- boot ---------- */
+async function boot(){
+  try{
+    if (!window.indexedDB) throw new Error('IndexedDB unavailable. Are you in Private Browsing?');
+
+    SQL = await initSqlJs({
+      locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/' + f
+    });
+
+    const saved = await idbGet();
+    if (saved){
+      db = new SQL.Database(new Uint8Array(saved));
+      setDb('ok','Loaded from device storage');
+    } else {
+      db = new SQL.Database();
+      setDb('ok','New database created');
+    }
+
+    db.run('PRAGMA foreign_keys = ON;');
+    db.run(SCHEMA);
+    if (!metaGet('schema_version')) metaSet('schema_version', SCHEMA_VERSION);
+
+    currentUser = localStorage.getItem('acheck_user') || '';
+
+    $('btnDl').disabled = false;
+    $('btnWipe').disabled = false;
+
+    loadCheck();
+    await save();
+  }catch(e){
+    setDb('bad','Init failed');
+    showErr('Startup failed: ' + e.message);
+    $('hdrSub').textContent = 'Phase 1 · error';
+  }
+}
+
+/* ---------- check load / render ---------- */
+function loadCheck(){
+  const rows = q('SELECT * FROM aircraft_checks ORDER BY check_id DESC LIMIT 1');
+
+  if (rows.length === 0){
+    $('setupCard').classList.remove('hide');
+    $('checkCard').classList.add('hide');
+    $('hdrSub').textContent = 'Phase 1 · no check yet';
+    if (!$('fStart').value) $('fStart').value = new Date().toISOString().slice(0,10);
+    if (currentUser) $('fUser').value = currentUser;
+    return;
+  }
+
+  currentCheck = rows[0];
+  $('setupCard').classList.add('hide');
+  $('checkCard').classList.remove('hide');
+  showImportCardIfReady();
+
+  const dmy = s => s ? s.split('-').reverse().join('/') : '—';
+  const days = currentCheck.start_date
+    ? Math.floor((Date.now() - new Date(currentCheck.start_date + 'T00:00:00').getTime()) / 86400000) + 1
+    : null;
+
+  $('checkInfo').innerHTML =
+    '<div class="kv"><span>Tail number</span><span>' + currentCheck.tail_number + '</span></div>' +
+    '<div class="kv"><span>Check type</span><span>' + (currentCheck.check_type || '—') + '</span></div>' +
+    '<div class="kv"><span>Start date</span><span>' + dmy(currentCheck.start_date) + '</span></div>' +
+    '<div class="kv"><span>Planned end</span><span>' + dmy(currentCheck.planned_end_date) + '</span></div>' +
+    '<div class="kv"><span>Day of check</span><span>' + (days !== null ? 'Day ' + days : '—') + '</span></div>' +
+    '<div class="kv"><span>Status</span><span>' + currentCheck.status + '</span></div>' +
+    '<div class="kv"><span>Updating as</span><span>' + (currentUser || 'not set') + '</span></div>';
+
+  $('hdrSub').textContent = currentCheck.tail_number + ' · ' + currentCheck.check_type;
+}
+
+/* ---------- debug counts ---------- */
+function refreshCounts(){
+  if (!db) return;
+  const tables = ['aircraft_checks','tasks','status_history','daily_snapshot'];
+  const tbody = document.querySelector('#tblCounts tbody');
+  tbody.innerHTML = '';
+  tables.forEach(t=>{
+    let c = '—';
+    try { c = q('SELECT COUNT(*) AS c FROM ' + t)[0].c; } catch(e){}
+    const tr = document.createElement('tr');
+    tr.innerHTML = '<td>' + t + '</td><td class="num">' + c + '</td>';
+    tbody.appendChild(tr);
+  });
+}
+
+/* ---------- Phase 2: Excel import ---------- */
+const TASK_FIELDS = [
+  { key: 'task_card_ref',    label: 'Task card ref',      required: false },
+  { key: 'ata_chapter',      label: 'ATA chapter',        required: false },
+  { key: 'zone',             label: 'Zone',                required: false },
+  { key: 'description',      label: 'Description',        required: true  },
+  { key: 'estimated_hours',  label: 'Estimated hours',    required: false },
+  { key: 'assigned_to',      label: 'Assigned to',        required: false }
+];
+
+let wb = null;          // parsed workbook
+let sheetRows = [];     // array-of-arrays for the selected sheet
+let sheetHeader = [];   // header row (row 0)
+
+function showImportCardIfReady(){
+  if (currentCheck) $('importCard').classList.remove('hide');
+}
+
+$('fFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      wb = XLSX.read(ev.target.result, { type:'array' });
+      const sheetSel = $('fSheet');
+      sheetSel.innerHTML = '';
+      wb.SheetNames.forEach(name=>{
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        sheetSel.appendChild(opt);
+      });
+      loadSheet(wb.SheetNames[0]);
+      $('importMapWrap').classList.remove('hide');
+    }catch(err){
+      showErr('Could not read file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+$('fSheet').addEventListener('change', ()=> loadSheet($('fSheet').value));
+
+function loadSheet(name){
+  const ws = wb.Sheets[name];
+  const data = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
+  // Find first non-empty row to use as header
+  let headerIdx = data.findIndex(r => r.some(c => String(c).trim() !== ''));
+  if (headerIdx < 0) headerIdx = 0;
+  sheetHeader = data[headerIdx].map(h => String(h).trim());
+  sheetRows = data.slice(headerIdx + 1).filter(r => r.some(c => String(c).trim() !== ''));
+  renderMapping();
+}
+
+function guessColumn(fieldKey){
+  const guesses = {
+    task_card_ref:   ['task card','card ref','task no','task number','ref','card no'],
+    ata_chapter:     ['ata','ata chapter','chapter'],
+    zone:            ['zone','area'],
+    description:     ['description','task description','task','details'],
+    estimated_hours: ['hours','est hours','estimated hours','mhrs','man hours','manhours'],
+    assigned_to:     ['assigned','tech','engineer','crew']
+  };
+  const opts = guesses[fieldKey] || [];
+  const idx = sheetHeader.findIndex(h => opts.some(g => h.toLowerCase().includes(g)));
+  return idx;
+}
+
+function renderMapping(){
+  const wrap = $('mapFields');
+  wrap.innerHTML = '';
+  TASK_FIELDS.forEach(f=>{
+    const row = document.createElement('div');
+    const guessIdx = guessColumn(f.key);
+    let optsHtml = '<option value="-1">— none —</option>';
+    sheetHeader.forEach((h,i)=>{
+      optsHtml += `<option value="${i}" ${i===guessIdx?'selected':''}>${h || '(column '+(i+1)+')'}</option>`;
+    });
+    row.innerHTML = `
+      <label>${f.label}${f.required?' *':''}</label>
+      <select data-field="${f.key}" class="mapSelect">${optsHtml}</select>`;
+    wrap.appendChild(row);
+  });
+  document.querySelectorAll('.mapSelect').forEach(sel=>{
+    sel.addEventListener('change', renderPreview);
+  });
+  renderPreview();
+}
+
+function currentMapping(){
+  const map = {};
+  document.querySelectorAll('.mapSelect').forEach(sel=>{
+    map[sel.dataset.field] = parseInt(sel.value, 10);
+  });
+  return map;
+}
+
+function renderPreview(){
+  const map = currentMapping();
+  const thead = document.querySelector('#tblPreview thead');
+  const tbody = document.querySelector('#tblPreview tbody');
+  thead.innerHTML = '<tr>' + TASK_FIELDS.map(f=>'<th>'+f.label+'</th>').join('') + '</tr>';
+  tbody.innerHTML = '';
+  sheetRows.slice(0,5).forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = TASK_FIELDS.map(f=>{
+      const idx = map[f.key];
+      const val = idx >= 0 ? (r[idx] ?? '') : '';
+      return '<td>' + String(val).slice(0,40) + '</td>';
+    }).join('');
+    tbody.appendChild(tr);
+  });
+}
+
+$('btnCancelImport').addEventListener('click', ()=>{
+  $('importMapWrap').classList.add('hide');
+  $('fFile').value = '';
+  wb = null; sheetRows = []; sheetHeader = [];
+});
+
+$('btnImport').addEventListener('click', async ()=>{
+  const map = currentMapping();
+  if (map.description < 0){
+    showErr('Description column must be mapped — it is required.');
+    return;
+  }
+  if (!currentCheck){
+    showErr('No active check found.');
+    return;
+  }
+  if (sheetRows.length === 0){
+    showErr('No data rows found in this sheet.');
+    return;
+  }
+
+  let inserted = 0, skipped = 0;
+  try{
+    db.run('BEGIN TRANSACTION');
+    sheetRows.forEach(r=>{
+      const desc = map.description >= 0 ? String(r[map.description] ?? '').trim() : '';
+      if (!desc){ skipped++; return; }
+
+      const cardRef = map.task_card_ref >= 0 ? String(r[map.task_card_ref] ?? '').trim() || null : null;
+      const ata      = map.ata_chapter   >= 0 ? String(r[map.ata_chapter]   ?? '').trim() || null : null;
+      const zone     = map.zone          >= 0 ? String(r[map.zone]          ?? '').trim() || null : null;
+      const assigned = map.assigned_to   >= 0 ? String(r[map.assigned_to]   ?? '').trim() || null : null;
+      let hours = null;
+      if (map.estimated_hours >= 0){
+        const raw = r[map.estimated_hours];
+        const n = parseFloat(String(raw).replace(/[^\d.]/g,''));
+        hours = isNaN(n) ? null : n;
+      }
+
+      db.run(
+        `INSERT INTO tasks (check_id, task_type, task_card_ref, ata_chapter, zone, description,
+                             estimated_hours, assigned_to, status, created_by)
+         VALUES (?, 'routine', ?, ?, ?, ?, ?, ?, 'Not Started', ?)`,
+        [currentCheck.check_id, cardRef, ata, zone, desc, hours, assigned, currentUser || null]
+      );
+      const taskId = db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
+      db.run(
+        `INSERT INTO status_history (task_id, status, changed_by, notes)
+         VALUES (?, 'Not Started', ?, 'Imported from task list')`,
+        [taskId, currentUser || null]
+      );
+      inserted++;
+    });
+    db.run('COMMIT');
+  }catch(e){
+    db.run('ROLLBACK');
+    showErr('Import failed, no rows were added: ' + e.message);
+    return;
+  }
+
+  await save();
+  $('importMapWrap').classList.add('hide');
+  $('fFile').value = '';
+  wb = null; sheetRows = []; sheetHeader = [];
+
+  const info = $('importedInfo');
+  info.classList.remove('hide');
+  info.innerHTML = `<div class="kv"><span>Last import</span><span>${new Date().toLocaleString('en-AU')}</span></div>
+                     <div class="kv"><span>Tasks added</span><span>${inserted}</span></div>
+                     <div class="kv"><span>Rows skipped (blank description)</span><span>${skipped}</span></div>`;
+  showOk(`Imported ${inserted} tasks${skipped ? ' (' + skipped + ' skipped)' : ''}.`);
+});
+
+/* ---------- Phase 2: Excel import ---------- */
+const TASK_FIELDS = [
+  { key: 'task_card_ref',    label: 'Task card ref',      required: false },
+  { key: 'ata_chapter',      label: 'ATA chapter',        required: false },
+  { key: 'zone',             label: 'Zone',                required: false },
+  { key: 'description',      label: 'Description',        required: true  },
+  { key: 'estimated_hours',  label: 'Estimated hours',    required: false },
+  { key: 'assigned_to',      label: 'Assigned to',        required: false }
+];
+
+let wb = null;
+let sheetRows = [];
+let sheetHeader = [];
+
+function showImportCardIfReady(){
+  if (currentCheck) $('importCard').classList.remove('hide');
+}
+
+$('fFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    try{
+      wb = XLSX.read(ev.target.result, { type:'array' });
+      const sheetSel = $('fSheet');
+      sheetSel.innerHTML = '';
+      wb.SheetNames.forEach(name=>{
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name;
+        sheetSel.appendChild(opt);
+      });
+      loadSheet(wb.SheetNames[0]);
+      $('importMapWrap').classList.remove('hide');
+    }catch(err){
+      showErr('Could not read file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+$('fSheet').addEventListener('change', ()=> loadSheet($('fSheet').value));
+
+function loadSheet(name){
+  const ws = wb.Sheets[name];
+  const data = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:'' });
+  let headerIdx = data.findIndex(r => r.some(c => String(c).trim() !== ''));
+  if (headerIdx < 0) headerIdx = 0;
+  sheetHeader = data[headerIdx].map(h => String(h).trim());
+  sheetRows = data.slice(headerIdx + 1).filter(r => r.some(c => String(c).trim() !== ''));
+  renderMapping();
+}
+
+function guessColumn(fieldKey){
+  const guesses = {
+    task_card_ref:   ['task card','card ref','task no','task number','ref','card no'],
+    ata_chapter:     ['ata','ata chapter','chapter'],
+    zone:            ['zone','area'],
+    description:     ['description','task description','task','details'],
+    estimated_hours: ['hours','est hours','estimated hours','mhrs','man hours','manhours'],
+    assigned_to:     ['assigned','tech','engineer','crew']
+  };
+  const opts = guesses[fieldKey] || [];
+  const idx = sheetHeader.findIndex(h => opts.some(g => h.toLowerCase().includes(g)));
+  return idx;
+}
+
+function renderMapping(){
+  const wrap = $('mapFields');
+  wrap.innerHTML = '';
+  TASK_FIELDS.forEach(f=>{
+    const row = document.createElement('div');
+    const guessIdx = guessColumn(f.key);
+    let optsHtml = '<option value="-1">— none —</option>';
+    sheetHeader.forEach((h,i)=>{
+      optsHtml += `<option value="${i}" ${i===guessIdx?'selected':''}>${h || '(column '+(i+1)+')'}</option>`;
+    });
+    row.innerHTML = `
+      <label>${f.label}${f.required?' *':''}</label>
+      <select data-field="${f.key}" class="mapSelect">${optsHtml}</select>`;
+    wrap.appendChild(row);
+  });
+  document.querySelectorAll('.mapSelect').forEach(sel=>{
+    sel.addEventListener('change', renderPreview);
+  });
+  renderPreview();
+}
+
+function currentMapping(){
+  const map = {};
+  document.querySelectorAll('.mapSelect').forEach(sel=>{
+    map[sel.dataset.field] = parseInt(sel.value, 10);
+  });
+  return map;
+}
+
+function renderPreview(){
+  const map = currentMapping();
+  const thead = document.querySelector('#tblPreview thead');
+  const tbody = document.querySelector('#tblPreview tbody');
+  thead.innerHTML = '<tr>' + TASK_FIELDS.map(f=>'<th>'+f.label+'</th>').join('') + '</tr>';
+  tbody.innerHTML = '';
+  sheetRows.slice(0,5).forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = TASK_FIELDS.map(f=>{
+      const idx = map[f.key];
+      const val = idx >= 0 ? (r[idx] ?? '') : '';
+      return '<td>' + String(val).slice(0,40) + '</td>';
+    }).join('');
+    tbody.appendChild(tr);
+  });
+}
+
+$('btnCancelImport').addEventListener('click', ()=>{
+  $('importMapWrap').classList.add('hide');
+  $('fFile').value = '';
+  wb = null; sheetRows = []; sheetHeader = [];
+});
+
+$('btnImport').addEventListener('click', async ()=>{
+  const map = currentMapping();
+  if (map.description < 0){
+    showErr('Description column must be mapped — it is required.');
+    return;
+  }
+  if (!currentCheck){
+    showErr('No active check found.');
+    return;
+  }
+  if (sheetRows.length === 0){
+    showErr('No data rows found in this sheet.');
+    return;
+  }
+
+  let inserted = 0, skipped = 0;
+  try{
+    db.run('BEGIN TRANSACTION');
+    sheetRows.forEach(r=>{
+      const desc = map.description >= 0 ? String(r[map.description] ?? '').trim() : '';
+      if (!desc){ skipped++; return; }
+
+      const cardRef = map.task_card_ref >= 0 ? String(r[map.task_card_ref] ?? '').trim() || null : null;
+      const ata      = map.ata_chapter   >= 0 ? String(r[map.ata_chapter]   ?? '').trim() || null : null;
+      const zone     = map.zone          >= 0 ? String(r[map.zone]          ?? '').trim() || null : null;
+      const assigned = map.assigned_to   >= 0 ? String(r[map.assigned_to]   ?? '').trim() || null : null;
+      let hours = null;
+      if (map.estimated_hours >= 0){
+        const raw = r[map.estimated_hours];
+        const n = parseFloat(String(raw).replace(/[^\d.]/g,''));
+        hours = isNaN(n) ? null : n;
+      }
+
+      db.run(
+        `INSERT INTO tasks (check_id, task_type, task_card_ref, ata_chapter, zone, description,
+                             estimated_hours, assigned_to, status, created_by)
+         VALUES (?, 'routine', ?, ?, ?, ?, ?, ?, 'Not Started', ?)`,
+        [currentCheck.check_id, cardRef, ata, zone, desc, hours, assigned, currentUser || null]
+      );
+      const taskId = db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
+      db.run(
+        `INSERT INTO status_history (task_id, status, changed_by, notes)
+         VALUES (?, 'Not Started', ?, 'Imported from task list')`,
+        [taskId, currentUser || null]
+      );
+      inserted++;
+    });
+    db.run('COMMIT');
+  }catch(e){
+    db.run('ROLLBACK');
+    showErr('Import failed, no rows were added: ' + e.message);
+    return;
+  }
+
+  await save();
+  $('importMapWrap').classList.add('hide');
+  $('fFile').value = '';
+  wb = null; sheetRows = []; sheetHeader = [];
+
+  const info = $('importedInfo');
+  info.classList.remove('hide');
+  info.innerHTML = `<div class="kv"><span>Last import</span><span>${new Date().toLocaleString('en-AU')}</span></div>
+                     <div class="kv"><span>Tasks added</span><span>${inserted}</span></div>
+                     <div class="kv"><span>Rows skipped (blank description)</span><span>${skipped}</span></div>`;
+  showOk(`Imported ${inserted} tasks${skipped ? ' (' + skipped + ' skipped)' : ''}.`);
+});
+
+/* ---------- events ---------- */
+$('btnCreate').addEventListener('click', async ()=>{
+  const tail  = $('fTail').value.trim().toUpperCase();
+  const type  = $('fType').value;
+  const start = $('fStart').value;
+  const end   = $('fEnd').value;
+  const user  = $('fUser').value.trim();
+
+  if (!tail)  { showErr('Tail number is required.'); return; }
+  if (!start) { showErr('Start date is required.');  return; }
+  if (end && end < start) { showErr('Planned end date is before the start date.'); return; }
+
+  try{
+    db.run('INSERT INTO aircraft_checks (tail_number, check_type, start_date, planned_end_date) VALUES (?,?,?,?)',
+           [tail, type, start, end || null]);
+    if (user){
+      currentUser = user;
+      localStorage.setItem('acheck_user', user);
+      metaSet('current_user', user);
+    }
+    await save();
+    loadCheck();
+    showOk('Check created for ' + tail + '.');
+  }catch(e){
+    showErr('Could not create check: ' + e.message);
+  }
+});
+
+$('btnDl').addEventListener('click', ()=>{
+  try{
+    const blob = new Blob([db.export()], {type:'application/x-sqlite3'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const tail = currentCheck ? currentCheck.tail_number.replace(/[^A-Z0-9]/gi,'') : 'tracker';
+    a.href = url;
+    a.download = 'acheck_' + tail + '_' + new Date().toISOString().slice(0,10) + '.db';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    showOk('Backup downloaded. Save it to Files or iCloud Drive.');
+  }catch(e){
+    showErr('Download failed: ' + e.message);
+  }
+});
+
+$('btnWipe').addEventListener('click', async ()=>{
+  if (!confirm('This permanently deletes ALL tracker data on this device. Continue?')) return;
+  if (!confirm('Last chance — download a backup first if you need the data. Reset now?')) return;
+  try{
+    await idbClear();
+    location.reload();
+  }catch(e){
+    showErr('Reset failed: ' + e.message);
+  }
+});
+
+/* ---------- go ---------- */
+boot();
+</script>
+</body>
+</html>
