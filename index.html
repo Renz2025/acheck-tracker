@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ button.sm{padding:9px 14px;font-size:13px;margin-top:12px}<!DOCTYPE html>
 <html lang="en-AU">
 <head>
 <meta charset="utf-8">
@@ -40,6 +40,7 @@
          font-family:inherit;margin-top:18px}
   button:active{opacity:.75}
   button.ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  button.sm{padding:9px 14px;font-size:13px;margin-top:12px}
   button:disabled{opacity:.4;cursor:default}
   .btns{display:flex;gap:10px;flex-wrap:wrap}
   .status{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim)}
@@ -59,6 +60,48 @@
   .banner.err{background:#3d1518;border:1px solid var(--bad);color:#ffb3ae}
   .banner.good{background:#12291a;border:1px solid var(--ok);color:#9fe0ab}
   .hide{display:none}
+  /* ---- Phase 3: task table ---- */
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+  .filters>div{flex:1;min-width:135px}
+  .filters label{margin-top:0}
+  .sumbar{display:flex;gap:6px;flex-wrap:wrap;margin:14px 0 4px}
+  .chip{padding:5px 10px;border-radius:999px;font-size:11px;font-weight:600;
+        background:var(--panel2);border:1px solid var(--line);color:var(--dim)}
+  .bar{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;margin:10px 0 2px}
+  .bar>i{display:block;height:100%;background:var(--ok);width:0}
+  .tlist{border-top:1px solid var(--line);margin-top:12px}
+  .trow{display:flex;align-items:center;gap:10px;padding:11px 2px;
+        border-bottom:1px solid var(--line)}
+  .trow .tmain{flex:1;min-width:0;cursor:pointer}
+  .trow .tno{font-size:11px;color:var(--dim);letter-spacing:.4px}
+  .trow .tdesc{font-size:14px;margin-top:2px;overflow:hidden;
+               text-overflow:ellipsis;white-space:nowrap}
+  .trow .tmeta{font-size:11px;color:var(--dim);margin-top:3px}
+  .pill{display:inline-block;padding:8px 11px;border-radius:999px;font-size:12px;
+        font-weight:600;border:1px solid var(--line);background:var(--panel2);
+        cursor:pointer;white-space:nowrap;min-width:100px;text-align:center;
+        color:var(--dim);user-select:none;-webkit-user-select:none}
+  .pill.s1{color:var(--accent);border-color:var(--accent)}
+  .pill.s2{color:var(--ok);border-color:var(--ok)}
+  .pill.s3{color:var(--warn);border-color:var(--warn)}
+  .pill.s4{color:var(--info);border-color:var(--info)}
+  .chev{padding:10px 8px;color:var(--dim);cursor:pointer;font-size:18px;flex:0 0 auto}
+  .empty{padding:26px 4px;text-align:center;color:var(--dim);font-size:13px}
+  /* detail sheet */
+  .sheet{position:fixed;inset:0;z-index:60;display:none}
+  .sheet.show{display:block}
+  .sheet .back{position:absolute;inset:0;background:rgba(0,0,0,.6)}
+  .sheet .panel{position:absolute;left:0;right:0;bottom:0;max-height:88vh;overflow-y:auto;
+        background:var(--panel);border-top:1px solid var(--line);
+        border-radius:14px 14px 0 0;padding:18px;
+        padding-bottom:calc(18px + env(safe-area-inset-bottom));
+        max-width:1100px;margin:0 auto;-webkit-overflow-scrolling:touch}
+  .sheet h3{margin:0 0 14px;font-size:15px}
+  .statgrid{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .statgrid .pill{flex:1;min-width:104px}
+  .statgrid .pill.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .hist{font-size:12px;color:var(--dim);margin-top:4px}
+  .hist div{padding:6px 0;border-bottom:1px solid var(--line)}
 </style>
 </head>
 <body>
@@ -113,6 +156,25 @@
     <div id="checkInfo"></div>
   </div>
 
+  <!-- TASKS -->
+  <div class="card hide" id="tasksCard">
+    <h2>Tasks</h2>
+    <p class="hint">Tap a status pill to advance it. Tap the description or ❯ for full detail.</p>
+    <div class="filters">
+      <div><label>Task status</label><select id="flStatus"></select></div>
+      <div><label>Logistics status</label><select id="flLog"></select></div>
+      <div><label>Task code</label><select id="flCode"></select></div>
+    </div>
+    <div class="filters">
+      <div style="min-width:100%"><label>Search description or task no</label>
+        <input id="flText" placeholder="type to filter…" autocapitalize="none"></div>
+    </div>
+    <div class="bar"><i id="tBar"></i></div>
+    <div class="sumbar" id="tSum"></div>
+    <div class="tlist" id="tList"></div>
+    <div class="btns"><button class="ghost sm hide" id="btnMore">Load more</button></div>
+  </div>
+
   <!-- IMPORT -->
   <div class="card hide" id="importCard">
     <h2>Import task list</h2>
@@ -154,6 +216,24 @@
       <button class="ghost" id="btnWipe" disabled>Reset database</button>
     </div>
   </div>
+
+  <div class="sheet" id="dSheet">
+  <div class="back" id="dBack"></div>
+  <div class="panel">
+    <h3 id="dTitle">Task</h3>
+    <div id="dFields"></div>
+    <label>Task status</label>
+    <div class="statgrid" id="dStat"></div>
+    <label>Comments</label>
+    <textarea id="dComments" placeholder="Notes, reason for hold/deferral…"></textarea>
+    <div class="btns">
+      <button id="dSave">Save changes</button>
+      <button class="ghost" id="dClose">Close</button>
+    </div>
+    <label>Status history</label>
+    <div class="hist" id="dHist"></div>
+  </div>
+</div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js"></script>
@@ -384,6 +464,7 @@ function loadCheck(){
     $('setupCard').classList.remove('hide');
     $('checkCard').classList.add('hide');
     $('importCard').classList.add('hide');
+    $('tasksCard').classList.add('hide');
     $('hdrSub').textContent = 'no check yet';
     if (!$('fStart').value) $('fStart').value = new Date().toISOString().slice(0,10);
     if (currentUser) $('fUser').value = currentUser;
@@ -394,6 +475,7 @@ function loadCheck(){
   $('setupCard').classList.add('hide');
   $('checkCard').classList.remove('hide');
   showImportCardIfReady();
+  showTasks();
 
   const dmy = s => s ? s.split('-').reverse().join('/') : '—';
   const days = currentCheck.start_date
@@ -639,6 +721,8 @@ $('btnImport').addEventListener('click', async ()=>{
     '<div class="kv"><span>Last import</span><span>' + new Date().toLocaleString('en-AU') + '</span></div>' +
     '<div class="kv"><span>Tasks added</span><span>' + inserted + '</span></div>' +
     '<div class="kv"><span>Rows skipped (blank description)</span><span>' + skipped + '</span></div>';
+  tLimit = 150;
+  showTasks();
   showOk('Imported ' + inserted + ' tasks' + (skipped ? ' (' + skipped + ' skipped)' : '') + '.');
 });
 
@@ -710,6 +794,197 @@ function migrate(){
   return true;
 }
 
+/* ---------- Phase 3: task table ---------- */
+const STATUSES = ['Not Started','In Progress','Completed','On Hold','Deferred'];
+const CYCLE    = { 'Not Started':'In Progress', 'In Progress':'Completed', 'Completed':'Not Started' };
+const SCLS     = { 'Not Started':'s0','In Progress':'s1','Completed':'s2','On Hold':'s3','Deferred':'s4' };
+let tLimit = 150;
+let dTaskId = null;
+let dPending = null;
+
+function esc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function fillSelect(el, values, allLabel){
+  const keep = el.value;
+  el.innerHTML = '<option value="">' + allLabel + '</option>' +
+    values.map(v => '<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
+  if (keep) el.value = keep;
+}
+function distinct(col){
+  if (!currentCheck) return [];
+  return q('SELECT DISTINCT '+col+' AS v FROM tasks WHERE check_id = ? AND '+col+
+           " IS NOT NULL AND TRIM("+col+") <> '' ORDER BY v", [currentCheck.check_id])
+         .map(r => r.v);
+}
+function buildFilters(){
+  fillSelect($('flStatus'), STATUSES.concat(
+    distinct('task_status').filter(v => !STATUSES.includes(v))), 'All statuses');
+  fillSelect($('flLog'),  distinct('logistics_status'), 'All logistics');
+  fillSelect($('flCode'), distinct('task_code'),        'All codes');
+}
+function taskWhere(){
+  const w = ['check_id = ?'], p = [currentCheck.check_id];
+  const s = $('flStatus').value, l = $('flLog').value,
+        c = $('flCode').value,   t = $('flText').value.trim();
+  if (s){ w.push('task_status = ?');     p.push(s); }
+  if (l){ w.push('logistics_status = ?'); p.push(l); }
+  if (c){ w.push('task_code = ?');       p.push(c); }
+  if (t){ w.push('(description LIKE ? OR IFNULL(task_no,\'\') LIKE ?)');
+          p.push('%'+t+'%','%'+t+'%'); }
+  return { sql: w.join(' AND '), params: p };
+}
+function renderTasks(){
+  if (!currentCheck || !db) return;
+  const { sql, params } = taskWhere();
+
+  // summary across the *filtered* set
+  const counts = q('SELECT task_status AS s, COUNT(*) AS c FROM tasks WHERE ' + sql +
+                   ' GROUP BY task_status', params);
+  let total = 0, done = 0;
+  const cmap = {};
+  counts.forEach(r=>{ cmap[r.s || 'Not Started'] = r.c; total += r.c;
+                      if (r.s === 'Completed') done += r.c; });
+  $('tSum').innerHTML =
+    '<span class="chip">' + total + ' shown</span>' +
+    STATUSES.map(s => cmap[s] ? '<span class="chip">' + s + ': ' + cmap[s] + '</span>' : '')
+            .join('') +
+    '<span class="chip">' + (total ? Math.round(done/total*100) : 0) + '% complete</span>';
+  $('tBar').style.width = (total ? (done/total*100) : 0) + '%';
+
+  const rows = q('SELECT task_id, task_no, sequence, description, task_status, ' +
+                 'task_code, logistics_status, next_due, estimated_hours ' +
+                 'FROM tasks WHERE ' + sql +
+                 ' ORDER BY CAST(sequence AS INTEGER), sequence, task_id LIMIT ' + (tLimit+1),
+                 params);
+  const more = rows.length > tLimit;
+  if (more) rows.pop();
+  $('btnMore').classList.toggle('hide', !more);
+
+  const list = $('tList');
+  if (rows.length === 0){
+    list.innerHTML = '<div class="empty">No tasks match these filters.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(r=>{
+    const st  = r.task_status || 'Not Started';
+    const meta = [
+      r.sequence ? 'Seq ' + esc(r.sequence) : '',
+      r.task_code ? esc(r.task_code) : '',
+      r.logistics_status ? 'Log: ' + esc(r.logistics_status) : '',
+      r.next_due ? 'Due ' + esc(r.next_due) : '',
+      (r.estimated_hours != null) ? r.estimated_hours + ' h' : ''
+    ].filter(Boolean).join(' · ');
+    return '<div class="trow">' +
+      '<div class="tmain" data-open="' + r.task_id + '">' +
+        '<div class="tno">' + esc(r.task_no || '(no task no)') + '</div>' +
+        '<div class="tdesc">' + esc(r.description) + '</div>' +
+        (meta ? '<div class="tmeta">' + meta + '</div>' : '') +
+      '</div>' +
+      '<span class="pill ' + SCLS[st] + '" data-cycle="' + r.task_id + '">' + esc(st) + '</span>' +
+      '<span class="chev" data-open="' + r.task_id + '">&#10095;</span>' +
+    '</div>';
+  }).join('');
+}
+$('tList').addEventListener('click', async (e)=>{
+  const cyc = e.target.closest('[data-cycle]');
+  if (cyc){ await cycleStatus(+cyc.dataset.cycle); return; }
+  const op = e.target.closest('[data-open]');
+  if (op) openSheet(+op.dataset.open);
+});
+['flStatus','flLog','flCode'].forEach(id =>
+  $(id).addEventListener('change', ()=>{ tLimit = 150; renderTasks(); }));
+let flTimer = null;
+$('flText').addEventListener('input', ()=>{
+  clearTimeout(flTimer);
+  flTimer = setTimeout(()=>{ tLimit = 150; renderTasks(); }, 200);
+});
+$('btnMore').addEventListener('click', ()=>{ tLimit += 150; renderTasks(); });
+
+async function setStatus(taskId, newStatus, note){
+  db.run('UPDATE tasks SET task_status = ? WHERE task_id = ?', [newStatus, taskId]);
+  db.run('INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?,?,?,?)',
+         [taskId, newStatus, currentUser || null, note || null]);
+  await save();
+}
+async function cycleStatus(taskId){
+  const r = q('SELECT task_status FROM tasks WHERE task_id = ?', [taskId]);
+  if (!r.length) return;
+  const cur  = r[0].task_status || 'Not Started';
+  const next = CYCLE[cur] || 'In Progress';   // On Hold/Deferred jump back into progress
+  await setStatus(taskId, next, 'Quick cycle from ' + cur);
+  buildFilters();
+  renderTasks();
+}
+
+/* ---------- detail sheet ---------- */
+const SHEET_FIELDS = [
+  ['task_no','Task no'], ['sequence','Sequence'], ['source_status','Status (source)'],
+  ['quoted','Quoted Y/N'], ['est_next_due','Estimated next due'], ['interval_spec','Interval'],
+  ['task_code','Task code'], ['next_due','Next due'], ['estimated_hours','Estimated hours'],
+  ['logistics_status','Logistics status'], ['task_type','Type']
+];
+function openSheet(taskId){
+  const r = q('SELECT * FROM tasks WHERE task_id = ?', [taskId]);
+  if (!r.length) return;
+  const t = r[0];
+  dTaskId  = taskId;
+  dPending = t.task_status || 'Not Started';
+  $('dTitle').textContent = (t.task_no ? t.task_no + ' — ' : '') +
+                            String(t.description).slice(0,80);
+  $('dFields').innerHTML =
+    '<div class="kv"><span>Description</span><span>' + esc(t.description) + '</span></div>' +
+    SHEET_FIELDS.map(([k,label]) =>
+      '<div class="kv"><span>' + label + '</span><span>' +
+      esc(t[k] != null && String(t[k]).trim() !== '' ? t[k] : '—') + '</span></div>').join('');
+  $('dComments').value = t.comments || '';
+  renderStatGrid();
+  const h = q('SELECT status, changed_by, changed_at, notes FROM status_history ' +
+              'WHERE task_id = ? ORDER BY history_id DESC LIMIT 25', [taskId]);
+  $('dHist').innerHTML = h.length
+    ? h.map(x => '<div>' + esc(x.status) + ' · ' + esc(x.changed_by || 'unknown') +
+                 ' · ' + esc(x.changed_at) + (x.notes ? ' · ' + esc(x.notes) : '') + '</div>').join('')
+    : '<div>No history yet.</div>';
+  $('dSheet').classList.add('show');
+}
+function renderStatGrid(){
+  $('dStat').innerHTML = STATUSES.map(s =>
+    '<span class="pill ' + SCLS[s] + (s === dPending ? ' on' : '') +
+    '" data-set="' + esc(s) + '">' + s + '</span>').join('');
+}
+$('dStat').addEventListener('click', (e)=>{
+  const el = e.target.closest('[data-set]');
+  if (!el) return;
+  dPending = el.dataset.set;
+  renderStatGrid();
+});
+function closeSheet(){
+  $('dSheet').classList.remove('show');
+  dTaskId = null; dPending = null;
+}
+$('dBack').addEventListener('click', closeSheet);
+$('dClose').addEventListener('click', closeSheet);
+$('dSave').addEventListener('click', async ()=>{
+  if (dTaskId == null) return;
+  const cur = q('SELECT task_status, comments FROM tasks WHERE task_id = ?', [dTaskId])[0];
+  const newComments = $('dComments').value.trim() || null;
+  if (newComments !== (cur.comments || null))
+    db.run('UPDATE tasks SET comments = ? WHERE task_id = ?', [newComments, dTaskId]);
+  const changed = dPending !== (cur.task_status || 'Not Started');
+  if (changed) await setStatus(dTaskId, dPending, 'Changed via detail sheet');
+  else await save();
+  closeSheet();
+  buildFilters();
+  renderTasks();
+  showOk(changed ? 'Status set to ' + dPending + '.' : 'Saved.');
+});
+function showTasks(){
+  if (!currentCheck) return;
+  $('tasksCard').classList.remove('hide');
+  buildFilters();
+  renderTasks();
+}
 boot();
 </script>
 </body>
