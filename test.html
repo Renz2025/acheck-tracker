@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>sql.js test</title></head>
+<body style="font:16px sans-serif;padding:20px">
+<h2>sql.js loader test</h2>
+<div id="out">Starting…</div>
+<script src="https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/sql-wasm.js"></script>
+<script>
+const out = document.getElementById('out');
+out.textContent = 'Script running. initSqlJs is: ' + typeof initSqlJs;
+initSqlJs({ locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/' + f })
+  .then(SQL => {
+    const db = new SQL.Database();
+    db.run('CREATE TABLE t (a);');
+    db.run('INSERT INTO t VALUES (42);');
+    const v = db.exec('SELECT a FROM t')[0].values[0][0];
+    out.textContent = '✅ SUCCESS — sql.js loaded and SQLite returned: ' + v;
+  })
+  .catch(e => { out.textContent = '❌ FAILED: ' + e.message; });
+</script>
+</body>
+</html>
