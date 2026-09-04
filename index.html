@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en-AU">
 <head>
 <meta charset="utf-8">
@@ -101,6 +102,29 @@
   .statgrid .pill.on{background:var(--accent);color:#fff;border-color:var(--accent)}
   .hist{font-size:12px;color:var(--dim);margin-top:4px}
   .hist div{padding:6px 0;border-bottom:1px solid var(--line)}
+
+  /* ---- Phase 4: dashboards ---- */
+  .tiles{display:flex;gap:10px;flex-wrap:wrap;margin:4px 0 18px}
+  .tile{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--line);
+        border-radius:10px;padding:12px 14px}
+  .tile .big{font-size:22px;font-weight:600;font-variant-numeric:tabular-nums}
+  .tile .lbl{font-size:11px;color:var(--dim);text-transform:uppercase;
+             letter-spacing:.5px;margin-top:3px}
+  .brow{display:flex;align-items:center;gap:10px;margin:7px 0;font-size:13px}
+  .brow .bl{width:130px;flex:0 0 auto;color:var(--dim);overflow:hidden;
+            text-overflow:ellipsis;white-space:nowrap}
+  .brow .bt{flex:1;height:16px;border-radius:4px;background:var(--panel2);overflow:hidden}
+  .brow .bt>i{display:block;height:100%;width:0;background:var(--accent)}
+  .brow .bt>i.c0{background:#5b6672} .brow .bt>i.c1{background:var(--accent)}
+  .brow .bt>i.c2{background:var(--ok)} .brow .bt>i.c3{background:var(--warn)}
+  .brow .bt>i.c4{background:var(--info)}
+  .brow .bn{width:64px;flex:0 0 auto;text-align:right;
+            font-variant-numeric:tabular-nums;color:var(--dim)}
+  .subh{font-size:12px;color:var(--dim);text-transform:uppercase;
+        letter-spacing:.5px;margin:20px 0 8px}
+  .chartwrap{background:var(--panel2);border:1px solid var(--line);
+             border-radius:10px;padding:12px}
+  .chartwrap svg{display:block;width:100%;height:auto}
 </style>
 </head>
 <body>
@@ -172,6 +196,22 @@
     <div class="sumbar" id="tSum"></div>
     <div class="tlist" id="tList"></div>
     <div class="btns"><button class="ghost sm hide" id="btnMore">Load more</button></div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div class="card hide" id="dashCard">
+    <h2>Dashboard</h2>
+    <p class="hint">Live view of the whole check. Not affected by the task filters above.</p>
+    <div class="tiles" id="dTiles"></div>
+    <div class="subh">Task status</div>
+    <div id="dStatusBars"></div>
+    <div class="subh">Task code</div>
+    <div id="dCodeBars"></div>
+    <div class="subh">Progress over time</div>
+    <div class="chartwrap" id="dBurn"></div>
+    <div class="btns">
+      <button class="ghost sm" id="btnSnap">Take snapshot now</button>
+    </div>
   </div>
 
   <!-- IMPORT -->
@@ -448,6 +488,7 @@ async function boot(){
     $('btnWipe').disabled = false;
 
     loadCheck();
+    if (currentCheck && metaGet('last_snapshot') !== today()) await takeSnapshot(true);
     await save();
   }catch(e){
     setDb('bad','Init failed');
@@ -464,6 +505,7 @@ function loadCheck(){
     $('checkCard').classList.add('hide');
     $('importCard').classList.add('hide');
     $('tasksCard').classList.add('hide');
+    $('dashCard').classList.add('hide');
     $('hdrSub').textContent = 'no check yet';
     if (!$('fStart').value) $('fStart').value = new Date().toISOString().slice(0,10);
     if (currentUser) $('fUser').value = currentUser;
@@ -475,6 +517,7 @@ function loadCheck(){
   $('checkCard').classList.remove('hide');
   showImportCardIfReady();
   showTasks();
+  showDash();
 
   const dmy = s => s ? s.split('-').reverse().join('/') : '—';
   const days = currentCheck.start_date
@@ -722,6 +765,7 @@ $('btnImport').addEventListener('click', async ()=>{
     '<div class="kv"><span>Rows skipped (blank description)</span><span>' + skipped + '</span></div>';
   tLimit = 150;
   showTasks();
+  showDash();
   showOk('Imported ' + inserted + ' tasks' + (skipped ? ' (' + skipped + ' skipped)' : '') + '.');
 });
 
@@ -915,6 +959,7 @@ async function cycleStatus(taskId){
   await setStatus(taskId, next, 'Quick cycle from ' + cur);
   buildFilters();
   renderTasks();
+  renderDash();
 }
 
 /* ---------- detail sheet ---------- */
@@ -976,6 +1021,7 @@ $('dSave').addEventListener('click', async ()=>{
   closeSheet();
   buildFilters();
   renderTasks();
+  renderDash();
   showOk(changed ? 'Status set to ' + dPending + '.' : 'Saved.');
 });
 function showTasks(){
@@ -983,6 +1029,168 @@ function showTasks(){
   $('tasksCard').classList.remove('hide');
   buildFilters();
   renderTasks();
+}
+
+/* ---------- Phase 4: dashboards + daily snapshot ---------- */
+function today(){ return new Date().toISOString().slice(0,10); }
+
+function statusTally(){
+  const rows = q('SELECT task_status AS s, COUNT(*) AS c FROM tasks WHERE check_id = ? ' +
+                 'GROUP BY task_status', [currentCheck.check_id]);
+  const t = { 'Not Started':0, 'In Progress':0, 'Completed':0, 'On Hold':0, 'Deferred':0 };
+  let total = 0;
+  rows.forEach(r=>{
+    const k = r.s || 'Not Started';
+    t[k] = (t[k] || 0) + r.c;
+    total += r.c;
+  });
+  t._total = total;
+  return t;
+}
+
+function barRow(label, count, total, cls){
+  const pct = total ? (count / total * 100) : 0;
+  return '<div class="brow">' +
+    '<span class="bl" title="' + esc(label) + '">' + esc(label) + '</span>' +
+    '<span class="bt"><i class="' + cls + '" style="width:' + pct.toFixed(1) + '%"></i></span>' +
+    '<span class="bn">' + count + ' · ' + Math.round(pct) + '%</span>' +
+  '</div>';
+}
+
+function burnSvg(){
+  const snaps = q('SELECT snapshot_date, total_tasks, completed, percent_complete ' +
+                  'FROM daily_snapshot WHERE check_id = ? ORDER BY snapshot_date',
+                  [currentCheck.check_id]);
+  if (snaps.length < 2)
+    return '<div class="empty">Not enough history yet — one point per day. ' +
+           'The chart appears once there are two days of snapshots.</div>';
+
+  const W = 320, H = 150, L = 34, R = 8, T = 10, B = 26;
+  const maxY = Math.max(...snaps.map(s => s.total_tasks || 0), 1);
+  const n = snaps.length;
+  const px = i => L + (n === 1 ? 0 : i * (W - L - R) / (n - 1));
+  const py = v => T + (1 - (v / maxY)) * (H - T - B);
+
+  const remain = snaps.map((s,i) => px(i).toFixed(1) + ',' +
+                  py((s.total_tasks || 0) - (s.completed || 0)).toFixed(1)).join(' ');
+  const done   = snaps.map((s,i) => px(i).toFixed(1) + ',' +
+                  py(s.completed || 0).toFixed(1)).join(' ');
+
+  // ideal straight line from full remaining down to zero across the planned window
+  const ideal = px(0).toFixed(1) + ',' + py(snaps[0].total_tasks || 0).toFixed(1) + ' ' +
+                px(n-1).toFixed(1) + ',' + py(0).toFixed(1);
+
+  const grid = [0, 0.5, 1].map(f=>{
+    const y = py(maxY * f).toFixed(1);
+    return '<line x1="'+L+'" y1="'+y+'" x2="'+(W-R)+'" y2="'+y+
+           '" stroke="#2f3a45" stroke-width="1"/>' +
+           '<text x="'+(L-5)+'" y="'+(+y+3.5)+'" fill="#8b98a5" font-size="8" ' +
+           'text-anchor="end">'+Math.round(maxY*f)+'</text>';
+  }).join('');
+
+  const dmy = s => s ? s.slice(8,10)+'/'+s.slice(5,7) : '';
+  const xlab = '<text x="'+L+'" y="'+(H-8)+'" fill="#8b98a5" font-size="8">' +
+               dmy(snaps[0].snapshot_date) + '</text>' +
+               '<text x="'+(W-R)+'" y="'+(H-8)+'" fill="#8b98a5" font-size="8" ' +
+               'text-anchor="end">' + dmy(snaps[n-1].snapshot_date) + '</text>';
+
+  return '<svg viewBox="0 0 '+W+' '+H+'" role="img" ' +
+         'aria-label="Tasks remaining and completed over time">' + grid +
+    '<polyline points="'+ideal+'" fill="none" stroke="#8b98a5" stroke-width="1" ' +
+      'stroke-dasharray="3 3"/>' +
+    '<polyline points="'+remain+'" fill="none" stroke="#f85149" stroke-width="2"/>' +
+    '<polyline points="'+done+'" fill="none" stroke="#3fb950" stroke-width="2"/>' +
+    xlab +
+  '</svg>' +
+  '<div class="hist" style="margin-top:8px">' +
+    '<span style="color:#f85149">— remaining</span> &nbsp; ' +
+    '<span style="color:#3fb950">— completed</span> &nbsp; ' +
+    '<span style="color:#8b98a5">-- ideal</span>' +
+  '</div>';
+}
+
+function renderDash(){
+  if (!currentCheck || !db) return;
+  const t = statusTally();
+  const total = t._total;
+  const pct = total ? Math.round(t['Completed'] / total * 100) : 0;
+
+  const hrs = q('SELECT ' +
+    'IFNULL(SUM(estimated_hours),0) AS all_h, ' +
+    "IFNULL(SUM(CASE WHEN task_status = 'Completed' THEN estimated_hours END),0) AS done_h " +
+    'FROM tasks WHERE check_id = ?', [currentCheck.check_id])[0];
+  const remainH = (hrs.all_h || 0) - (hrs.done_h || 0);
+
+  // day of check / days remaining against planned end
+  const ms = 86400000;
+  const startD = currentCheck.start_date
+    ? new Date(currentCheck.start_date + 'T00:00:00') : null;
+  const endD = currentCheck.planned_end_date
+    ? new Date(currentCheck.planned_end_date + 'T00:00:00') : null;
+  const now = new Date(today() + 'T00:00:00');
+  let dayTxt = '—';
+  if (startD){
+    const d = Math.floor((now - startD) / ms) + 1;
+    dayTxt = d > 0 ? 'Day ' + d : 'in ' + (1 - d) + 'd';
+  }
+  const daysLeft = endD ? Math.round((endD - now) / ms) : null;
+
+  $('dTiles').innerHTML =
+    '<div class="tile"><div class="big">' + pct + '%</div>' +
+      '<div class="lbl">Complete</div></div>' +
+    '<div class="tile"><div class="big">' + (total - t['Completed']) + '</div>' +
+      '<div class="lbl">Tasks remaining</div></div>' +
+    '<div class="tile"><div class="big">' + (t['On Hold'] + t['Deferred']) + '</div>' +
+      '<div class="lbl">Held / deferred</div></div>' +
+    '<div class="tile"><div class="big">' + remainH.toFixed(1) + '</div>' +
+      '<div class="lbl">Est. hours left</div></div>' +
+    '<div class="tile"><div class="big">' + dayTxt + '</div>' +
+      '<div class="lbl">Of check</div></div>' +
+    '<div class="tile"><div class="big">' +
+      (daysLeft === null ? '—' : daysLeft) + '</div>' +
+      '<div class="lbl">Days to planned end</div></div>';
+
+  $('dStatusBars').innerHTML = STATUSES.map((s,i) =>
+    barRow(s, t[s] || 0, total, 'c' + i)).join('');
+
+  const codes = q('SELECT IFNULL(NULLIF(TRIM(task_code),\'\'),\'(none)\') AS k, ' +
+    "COUNT(*) AS c, SUM(CASE WHEN task_status = 'Completed' THEN 1 ELSE 0 END) AS d " +
+    'FROM tasks WHERE check_id = ? GROUP BY k ORDER BY c DESC LIMIT 12',
+    [currentCheck.check_id]);
+  $('dCodeBars').innerHTML = codes.length
+    ? codes.map(r => barRow(r.k + '  (' + r.d + '/' + r.c + ' done)',
+                           r.c, total, 'c1')).join('')
+    : '<div class="empty">No task codes present.</div>';
+
+  $('dBurn').innerHTML = burnSvg();
+}
+
+/* one snapshot row per calendar day, overwritten if it already exists */
+async function takeSnapshot(silent){
+  if (!currentCheck || !db) return;
+  const t = statusTally();
+  const total = t._total;
+  const pct = total ? (t['Completed'] / total * 100) : 0;
+  const d = today();
+  db.run('DELETE FROM daily_snapshot WHERE check_id = ? AND snapshot_date = ?',
+         [currentCheck.check_id, d]);
+  db.run('INSERT INTO daily_snapshot (check_id, snapshot_date, not_started, in_progress, ' +
+         'completed, on_hold, deferred, total_tasks, percent_complete) ' +
+         'VALUES (?,?,?,?,?,?,?,?,?)',
+         [currentCheck.check_id, d, t['Not Started'], t['In Progress'], t['Completed'],
+          t['On Hold'], t['Deferred'], total, pct]);
+  metaSet('last_snapshot', d);
+  await save();
+  renderDash();
+  if (!silent) showOk('Snapshot saved for ' + d.split('-').reverse().join('/') + '.');
+}
+
+$('btnSnap').addEventListener('click', ()=> takeSnapshot(false));
+
+function showDash(){
+  if (!currentCheck) return;
+  $('dashCard').classList.remove('hide');
+  renderDash();
 }
 boot();
 </script>
