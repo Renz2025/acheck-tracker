@@ -1287,8 +1287,10 @@ function renderDash(){
 
   const codes = q('SELECT IFNULL(NULLIF(TRIM(task_code),\'\'),\'(none)\') AS k, ' +
     "COUNT(*) AS c, SUM(CASE WHEN task_status = 'Completed' THEN 1 ELSE 0 END) AS d " +
-    'FROM tasks WHERE check_id = ? GROUP BY k ORDER BY c DESC LIMIT 12',
+    "FROM tasks WHERE check_id = ? AND IFNULL(approval,'approved') <> 'rejected' " +
+    'GROUP BY k ORDER BY c DESC LIMIT 12',
     [currentCheck.check_id]);
+  
   $('dCodeBars').innerHTML = codes.length
     ? codes.map(r => barRow(r.k + '  (' + r.d + '/' + r.c + ' done)',
                            r.c, total, 'c1')).join('')
