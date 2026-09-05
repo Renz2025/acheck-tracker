@@ -238,10 +238,22 @@
 
   <!-- IMPORT -->
   <div class="card hide" id="importCard">
-    <h2>Import task list</h2>
-    <p class="hint">Upload the A Check task list Excel file. Map its columns once below.</p>
-
+    <h2>Import tasks</h2>
+    <p class="hint">Upload a task list. Use <strong>Unscheduled</strong> for non-routine
+       tasks raised during the check — they're added to the existing list, not replacing it.</p>
+    <label>Import as</label>
+    <select id="fImpType">
+      <option value="routine">Scheduled (routine)</option>
+      <option value="non_routine">Unscheduled (non-routine / NRT)</option>
+    </select>
+    <label>Excel or CSV file</label>
     <input type="file" id="fFile" accept=".xlsx,.xls,.csv">
+    <div class="chk">
+      <input type="checkbox" id="fSkipDupes" checked>
+      <label for="fSkipDupes" style="margin:0;text-transform:none;letter-spacing:0;font-size:13px">
+        Skip rows whose task no already exists in this check
+      </label>
+    </div>
 
     <div id="importMapWrap" class="hide">
       <label>Sheet</label>
