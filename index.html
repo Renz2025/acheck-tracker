@@ -205,7 +205,12 @@
   <div class="card hide" id="tasksCard">
     <h2>Tasks</h2>
     <p class="hint">Tap a status pill to advance it. Tap the description or ❯ for full detail.</p>
-    <div class="filters">
+      <div class="filters">
+      <div><label>Type</label><select id="flType">
+        <option value="">All types</option>
+        <option value="routine">Scheduled</option>
+        <option value="non_routine">Unscheduled (NRT)</option>
+      </select></div>
       <div><label>Task status</label><select id="flStatus"></select></div>
       <div><label>Logistics status</label><select id="flLog"></select></div>
       <div><label>Task code</label><select id="flCode"></select></div>
