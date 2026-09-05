@@ -996,8 +996,9 @@ function renderTasks(){
     '<span class="chip">' + (total ? Math.round(done/total*100) : 0) + '% complete</span>';
   $('tBar').style.width = (total ? (done/total*100) : 0) + '%';
 
-  const rows = q('SELECT task_id, task_no, sequence, description, task_status, ' +
-                 'task_code, logistics_status, next_due, estimated_hours ' +
+    const rows = q('SELECT task_id, task_no, sequence, description, task_status, ' +
+                 'task_code, logistics_status, next_due, estimated_hours, ' +
+                 'task_type, approval ' +
                  'FROM tasks WHERE ' + sql +
                  ' ORDER BY CAST(sequence AS INTEGER), sequence, task_id LIMIT ' + (tLimit+1),
                  params);
@@ -1011,7 +1012,9 @@ function renderTasks(){
     return;
   }
   list.innerHTML = rows.map(r=>{
-    const st  = r.task_status || 'Not Started';
+    const st   = r.task_status || 'Not Started';
+    const nrt  = r.task_type === 'non_routine';
+    const appr = nrt ? (r.approval || 'pending') : 'approved';
     const meta = [
       r.sequence ? 'Seq ' + esc(r.sequence) : '',
       r.task_code ? esc(r.task_code) : '',
@@ -1019,17 +1022,36 @@ function renderTasks(){
       r.next_due ? 'Due ' + esc(r.next_due) : '',
       (r.estimated_hours != null) ? r.estimated_hours + ' h' : ''
     ].filter(Boolean).join(' · ');
-    return '<div class="trow">' +
+
+    let acts;
+    if (appr === 'pending'){
+      acts = '<span class="abtn go" data-approve="' + r.task_id + '">Approve</span>' +
+             '<span class="abtn no" data-reject="'  + r.task_id + '">Reject</span>';
+    } else if (appr === 'rejected'){
+      acts = '<span class="abtn mut" data-unreject="' + r.task_id + '">Cancel rejection</span>' +
+             '<span class="abtn no" data-del="'       + r.task_id + '">Delete</span>';
+    } else {
+      acts = '<span class="pill ' + SCLS[st] + '" data-cycle="' + r.task_id + '">' +
+             esc(st) + '</span>' +
+             (nrt ? '<span class="abtn mut" data-unapprove="' + r.task_id +
+                    '">Cancel approval</span>' : '');
+    }
+
+    return '<div class="trow' + (appr === 'rejected' ? ' rej' : '') + '">' +
       '<div class="tmain" data-open="' + r.task_id + '">' +
-        '<div class="tno">' + esc(r.task_no || '(no task no)') + '</div>' +
+        '<div class="tno">' + (nrt ? '<span class="tag">NRT</span>' : '') +
+          esc(r.task_no || '(no task no)') +
+          (appr === 'pending' ? ' · awaiting approval' : '') +
+          (appr === 'rejected' ? ' · rejected' : '') + '</div>' +
         '<div class="tdesc">' + esc(r.description) + '</div>' +
         (meta ? '<div class="tmeta">' + meta + '</div>' : '') +
       '</div>' +
-      '<span class="pill ' + SCLS[st] + '" data-cycle="' + r.task_id + '">' + esc(st) + '</span>' +
+      '<span class="tacts">' + acts + '</span>' +
       '<span class="chev" data-open="' + r.task_id + '">&#10095;</span>' +
     '</div>';
   }).join('');
 }
+
 $('tList').addEventListener('click', async (e)=>{
   const cyc = e.target.closest('[data-cycle]');
   if (cyc){ await cycleStatus(+cyc.dataset.cycle); return; }
