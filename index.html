@@ -1053,6 +1053,35 @@ function renderTasks(){
   }).join('');
 }
 
+['flType','flStatus','flLog','flCode'].forEach(id =>
+  $(id).addEventListener('change', ()=>{ tLimit = 150; renderTasks(); }));
+
+let flTimer = null;
+$('flText').addEventListener('input', ()=>{
+  clearTimeout(flTimer);
+  flTimer = setTimeout(()=>{ tLimit = 150; renderTasks(); }, 200);
+});
+
+$('btnMore').addEventListener('click', ()=>{ tLimit += 150; renderTasks(); });
+
+async function setStatus(taskId, newStatus, note){
+  db.run('UPDATE tasks SET task_status = ? WHERE task_id = ?', [newStatus, taskId]);
+  db.run('INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?,?,?,?)',
+         [taskId, newStatus, currentUser || null, note || null]);
+  await save();
+}
+
+async function cycleStatus(taskId){
+  const r = q('SELECT task_status FROM tasks WHERE task_id = ?', [taskId]);
+  if (!r.length) return;
+  const cur  = r[0].task_status || 'Not Started';
+  const next = CYCLE[cur] || 'In Progress';   // On Hold/Deferred jump back into progress
+  await setStatus(taskId, next, 'Quick cycle from ' + cur);
+  buildFilters();
+  renderTasks();
+  renderDash();
+}
+
 $('tList').addEventListener('click', async (e)=>{
   const hit = sel => e.target.closest('[data-' + sel + ']');
   let el;
