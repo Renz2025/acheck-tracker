@@ -1251,6 +1251,37 @@ $('fSwitch').addEventListener('change', async ()=>{
   await save();
   loadCheck();
 });
+
+$('btnDelCheck').addEventListener('click', async ()=>{
+  if (!currentCheck) return;
+  const n = q('SELECT COUNT(*) AS c FROM tasks WHERE check_id = ?',
+              [currentCheck.check_id])[0].c;
+  const name = currentCheck.tail_number + ' ' + (currentCheck.check_type || '');
+  if (!confirm('Delete ' + name + ' and its ' + n +
+               ' tasks, history and snapshots? This cannot be undone.')) return;
+  if (!confirm('Confirm again — permanently delete ' + name + '?')) return;
+  const id = currentCheck.check_id;
+  try{
+    db.run('BEGIN TRANSACTION');
+    db.run('DELETE FROM status_history WHERE task_id IN ' +
+           '(SELECT task_id FROM tasks WHERE check_id = ?)', [id]);
+    db.run('DELETE FROM daily_snapshot WHERE check_id = ?', [id]);
+    db.run('DELETE FROM tasks WHERE check_id = ?', [id]);
+    db.run('DELETE FROM aircraft_checks WHERE check_id = ?', [id]);
+    db.run('COMMIT');
+  }catch(e){
+    db.run('ROLLBACK');
+    showErr('Delete failed: ' + e.message);
+    return;
+  }
+  const next = q('SELECT check_id FROM aircraft_checks ORDER BY check_id DESC LIMIT 1');
+  metaSet('active_check', next.length ? next[0].check_id : 0);
+  currentCheck = null;
+  await save();
+  loadCheck();
+  showOk('Deleted ' + name + '.');
+});
+
 boot();
 </script>
 </body>
