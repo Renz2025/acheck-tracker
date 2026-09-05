@@ -446,6 +446,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   estimated_hours REAL,
   logistics_status TEXT,
   task_status TEXT DEFAULT 'Not Started',
+  approval TEXT DEFAULT 'approved',
   comments TEXT,
   mel_cdl_reference TEXT,
   priority TEXT,
