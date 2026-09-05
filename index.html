@@ -811,15 +811,16 @@ $('btnImport').addEventListener('click', async ()=>{
         hours = isNaN(n) ? null : n;
       }
       const ts = g('task_status') || 'Not Started';
+      const appr = impType === 'non_routine' ? 'pending' : 'approved';
       db.run(
         'INSERT INTO tasks (check_id, task_type, task_no, sequence, description, ' +
         'source_status, quoted, est_next_due, interval_spec, task_code, next_due, ' +
-        'estimated_hours, logistics_status, task_status, comments, created_by) ' +
-        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        'estimated_hours, logistics_status, task_status, approval, comments, created_by) ' +
+        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [currentCheck.check_id, impType, tno, g('sequence'), desc,
          g('source_status'), g('quoted'), normDue(g('est_next_due')),
          g('interval_spec'), g('task_code'), normDue(g('next_due')),
-         hours, g('logistics_status'), ts, g('comments'), currentUser || null]
+         hours, g('logistics_status'), ts, appr, g('comments'), currentUser || null]
       );
       const taskId = db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
       db.run(
