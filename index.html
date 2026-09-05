@@ -852,6 +852,7 @@ $('btnImport').addEventListener('click', async ()=>{
   tLimit = 150;
   showTasks();
   showDash();
+  await takeSnapshot(true);
   showOk('Added ' + inserted + ' ' + typeLabel + ' tasks' +
          (dupes ? ', ' + dupes + ' duplicates skipped' : '') + '.');
 });
