@@ -984,7 +984,6 @@ function renderTasks(){
 
   // summary across the *filtered* set
   const counts = q('SELECT task_status AS s, COUNT(*) AS c FROM tasks WHERE ' + sql +
-                   ' GROUP BY task_status', params);  const counts = q('SELECT task_status AS s, COUNT(*) AS c FROM tasks WHERE ' + sql +
                    " AND IFNULL(approval,'approved') <> 'rejected'" +
                    ' GROUP BY task_status', params);
   let total = 0, done = 0;
