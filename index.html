@@ -135,6 +135,19 @@
   .tag{display:inline-block;padding:1px 6px;border-radius:5px;font-size:10px;
        font-weight:700;letter-spacing:.4px;background:#3a2a12;
        border:1px solid var(--warn);color:#f0d48a;margin-right:6px}
+
+  /* ---- Phase 5b: NRT approval ---- */
+  .trow.rej{opacity:.42}
+  .trow.rej .tdesc{text-decoration:line-through}
+  .abtn{display:inline-block;padding:8px 10px;border-radius:8px;font-size:12px;
+        font-weight:600;border:1px solid var(--line);background:var(--panel2);
+        color:var(--txt);cursor:pointer;white-space:nowrap;
+        user-select:none;-webkit-user-select:none}
+  .abtn.go{border-color:var(--ok);color:var(--ok)}
+  .abtn.no{border-color:var(--bad);color:var(--bad)}
+  .abtn.mut{color:var(--dim)}
+  .tacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:0 0 auto}
+  .note{font-size:12px;color:var(--dim);padding:8px 0}
   
 </style>
 </head>
