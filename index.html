@@ -532,13 +532,16 @@ function loadCheck(){
   showImportCardIfReady();
 
   // switcher — only shown when there's more than one check
-  const sw = $('fSwitch');
-  sw.innerHTML = all.map(c =>
-    '<option value="' + c.check_id + '"' +
-    (c.check_id === currentCheck.check_id ? ' selected' : '') + '>' +
-    esc(c.tail_number + ' · ' + (c.check_type || '—') + ' · ' +
-        (c.start_date ? c.start_date.split('-').reverse().join('/') : 'no date')) +
-    '</option>').join('');
+    const sw = $('fSwitch');
+  sw.innerHTML = all.map(c => {
+    const n = q('SELECT COUNT(*) AS c FROM tasks WHERE check_id = ?', [c.check_id])[0].c;
+    return '<option value="' + c.check_id + '"' +
+      (c.check_id === currentCheck.check_id ? ' selected' : '') + '>' +
+      esc(c.tail_number + ' · ' + (c.check_type || '—') + ' · ' +
+          (c.start_date ? c.start_date.split('-').reverse().join('/') : 'no date') +
+          ' · ' + n + ' tasks') + '</option>';
+  }).join('');
+  $('btnDelCheck').disabled = all.length < 2;
   
   const dmy = s => s ? s.split('-').reverse().join('/') : '—';
   const days = currentCheck.start_date
