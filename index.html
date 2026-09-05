@@ -1053,35 +1053,41 @@ function renderTasks(){
 }
 
 $('tList').addEventListener('click', async (e)=>{
-  const cyc = e.target.closest('[data-cycle]');
-  if (cyc){ await cycleStatus(+cyc.dataset.cycle); return; }
-  const op = e.target.closest('[data-open]');
-  if (op) openSheet(+op.dataset.open);
+  const hit = sel => e.target.closest('[data-' + sel + ']');
+  let el;
+  if ((el = hit('approve'))){   await setApproval(+el.dataset.approve,  'approved'); return; }
+  if ((el = hit('reject'))){    await setApproval(+el.dataset.reject,   'rejected'); return; }
+  if ((el = hit('unreject'))){  await setApproval(+el.dataset.unreject, 'pending');  return; }
+  if ((el = hit('unapprove'))){ await setApproval(+el.dataset.unapprove,'pending');  return; }
+  if ((el = hit('del'))){       await deleteTask(+el.dataset.del);                   return; }
+  if ((el = hit('cycle'))){     await cycleStatus(+el.dataset.cycle);                return; }
+  if ((el = hit('open')))       openSheet(+el.dataset.open);
 });
-['flType','flStatus','flLog','flCode'].forEach(id =>
-  $(id).addEventListener('change', ()=>{ tLimit = 150; renderTasks(); }));
-let flTimer = null;
-$('flText').addEventListener('input', ()=>{
-  clearTimeout(flTimer);
-  flTimer = setTimeout(()=>{ tLimit = 150; renderTasks(); }, 200);
-});
-$('btnMore').addEventListener('click', ()=>{ tLimit += 150; renderTasks(); });
 
-async function setStatus(taskId, newStatus, note){
-  db.run('UPDATE tasks SET task_status = ? WHERE task_id = ?', [newStatus, taskId]);
+async function setApproval(taskId, state){
+  const note = { approved:'Approved', rejected:'Rejected', pending:'Approval reset' }[state];
+  db.run('UPDATE tasks SET approval = ? WHERE task_id = ?', [state, taskId]);
   db.run('INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?,?,?,?)',
-         [taskId, newStatus, currentUser || null, note || null]);
+         [taskId, q('SELECT task_status FROM tasks WHERE task_id = ?', [taskId])[0].task_status
+                  || 'Not Started', currentUser || null, note]);
   await save();
+  renderTasks();
+  renderDash();
+  showOk(note + '.');
 }
-async function cycleStatus(taskId){
-  const r = q('SELECT task_status FROM tasks WHERE task_id = ?', [taskId]);
-  if (!r.length) return;
-  const cur  = r[0].task_status || 'Not Started';
-  const next = CYCLE[cur] || 'In Progress';   // On Hold/Deferred jump back into progress
-  await setStatus(taskId, next, 'Quick cycle from ' + cur);
+
+async function deleteTask(taskId){
+  const t = q('SELECT task_no, description FROM tasks WHERE task_id = ?', [taskId]);
+  if (!t.length) return;
+  const label = t[0].task_no || String(t[0].description).slice(0,40);
+  if (!confirm('Permanently delete task ' + label + '? This cannot be undone.')) return;
+  db.run('DELETE FROM status_history WHERE task_id = ?', [taskId]);
+  db.run('DELETE FROM tasks WHERE task_id = ?', [taskId]);
+  await save();
   buildFilters();
   renderTasks();
   renderDash();
+  showOk('Task deleted.');
 }
 
 /* ---------- detail sheet ---------- */
