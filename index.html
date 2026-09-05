@@ -1164,6 +1164,7 @@ function today(){ return new Date().toISOString().slice(0,10); }
 
 function statusTally(){
   const rows = q('SELECT task_status AS s, COUNT(*) AS c FROM tasks WHERE check_id = ? ' +
+                 "AND IFNULL(approval,'approved') <> 'rejected' " +
                  'GROUP BY task_status', [currentCheck.check_id]);
   const t = { 'Not Started':0, 'In Progress':0, 'Completed':0, 'On Hold':0, 'Deferred':0 };
   let total = 0;
