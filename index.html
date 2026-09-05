@@ -1103,6 +1103,7 @@ async function setApproval(taskId, state){
                   || 'Not Started', currentUser || null, note]);
   await save();
   renderTasks();
+  await takeSnapshot(true);
   renderDash();
   showOk(note + '.');
 }
