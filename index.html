@@ -527,6 +527,7 @@ async function boot(){
         db.run('PRAGMA foreign_keys = ON;');
     const wasMigrated = migrate();
     db.run(SCHEMA);
+    migrateApproval();
     metaSet('schema_version', SCHEMA_VERSION);
     if (wasMigrated){
       const b = $('errBox');
