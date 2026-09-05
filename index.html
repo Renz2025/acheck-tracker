@@ -764,13 +764,27 @@ $('btnImport').addEventListener('click', async ()=>{
   if (!currentCheck){ showErr('No active check found.'); return; }
   if (sheetRows.length === 0){ showErr('No data rows found in this sheet.'); return; }
 
-  let inserted = 0, skipped = 0;
+  const impType  = $('fImpType').value === 'non_routine' ? 'non_routine' : 'routine';
+  const skipDupes = $('fSkipDupes').checked;
+  const typeLabel = impType === 'non_routine' ? 'unscheduled' : 'scheduled';
+
+  // existing task numbers in this check, for duplicate detection
+  const existing = new Set(
+    q("SELECT task_no FROM tasks WHERE check_id = ? AND task_no IS NOT NULL AND TRIM(task_no) <> ''",
+      [currentCheck.check_id]).map(r => String(r.task_no).trim().toUpperCase())
+  );
+
+  let inserted = 0, skipped = 0, dupes = 0;
   try{
     db.run('BEGIN TRANSACTION');
     sheetRows.forEach(r=>{
       const desc = map.description >= 0 ? String(r[map.description] ?? '').trim() : '';
       if (!desc){ skipped++; return; }
-      const g   = k => map[k] >= 0 ? (String(r[map[k]] ?? '').trim() || null) : null;
+      const g = k => map[k] >= 0 ? (String(r[map[k]] ?? '').trim() || null) : null;
+
+      const tno = g('task_no');
+      if (skipDupes && tno && existing.has(tno.toUpperCase())){ dupes++; return; }
+
       let hours = null;
       if (map.estimated_hours >= 0){
         const n = parseFloat(String(r[map.estimated_hours]).replace(/[^\d.]/g,''));
@@ -781,17 +795,18 @@ $('btnImport').addEventListener('click', async ()=>{
         'INSERT INTO tasks (check_id, task_type, task_no, sequence, description, ' +
         'source_status, quoted, est_next_due, interval_spec, task_code, next_due, ' +
         'estimated_hours, logistics_status, task_status, comments, created_by) ' +
-        "VALUES (?, 'routine', ?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        [currentCheck.check_id, g('task_no'), g('sequence'), desc,
+        'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [currentCheck.check_id, impType, tno, g('sequence'), desc,
          g('source_status'), g('quoted'), normDue(g('est_next_due')),
          g('interval_spec'), g('task_code'), normDue(g('next_due')),
          hours, g('logistics_status'), ts, g('comments'), currentUser || null]
       );
       const taskId = db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
       db.run(
-        "INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?,?,?,'Imported from task list')",
-        [taskId, ts, currentUser || null]
+        'INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?,?,?,?)',
+        [taskId, ts, currentUser || null, 'Imported (' + typeLabel + ')']
       );
+      if (tno) existing.add(tno.toUpperCase());   // catch dupes within the same file
       inserted++;
     });
     db.run('COMMIT');
@@ -805,17 +820,19 @@ $('btnImport').addEventListener('click', async ()=>{
   $('importMapWrap').classList.add('hide');
   $('fFile').value = '';
   wb = null; sheetRows = []; sheetHeader = [];
-
   const info = $('importedInfo');
   info.classList.remove('hide');
   info.innerHTML =
     '<div class="kv"><span>Last import</span><span>' + new Date().toLocaleString('en-AU') + '</span></div>' +
+    '<div class="kv"><span>Imported as</span><span>' + typeLabel + '</span></div>' +
     '<div class="kv"><span>Tasks added</span><span>' + inserted + '</span></div>' +
-    '<div class="kv"><span>Rows skipped (blank description)</span><span>' + skipped + '</span></div>';
+    '<div class="kv"><span>Duplicate task nos skipped</span><span>' + dupes + '</span></div>' +
+    '<div class="kv"><span>Blank descriptions skipped</span><span>' + skipped + '</span></div>';
   tLimit = 150;
   showTasks();
   showDash();
-  showOk('Imported ' + inserted + ' tasks' + (skipped ? ' (' + skipped + ' skipped)' : '') + '.');
+  showOk('Added ' + inserted + ' ' + typeLabel + ' tasks' +
+         (dupes ? ', ' + dupes + ' duplicates skipped' : '') + '.');
 });
 
 /* ---------- events ---------- */
