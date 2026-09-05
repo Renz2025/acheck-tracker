@@ -1249,7 +1249,8 @@ function renderDash(){
   const hrs = q('SELECT ' +
     'IFNULL(SUM(estimated_hours),0) AS all_h, ' +
     "IFNULL(SUM(CASE WHEN task_status = 'Completed' THEN estimated_hours END),0) AS done_h " +
-    'FROM tasks WHERE check_id = ?', [currentCheck.check_id])[0];
+    "FROM tasks WHERE check_id = ? AND IFNULL(approval,'approved') <> 'rejected'",
+    [currentCheck.check_id])[0];
   const remainH = (hrs.all_h || 0) - (hrs.done_h || 0);
 
   // day of check / days remaining against planned end
