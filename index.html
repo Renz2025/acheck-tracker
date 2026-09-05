@@ -539,8 +539,7 @@ function loadCheck(){
     esc(c.tail_number + ' · ' + (c.check_type || '—') + ' · ' +
         (c.start_date ? c.start_date.split('-').reverse().join('/') : 'no date')) +
     '</option>').join('');
-  $('switchWrap').classList.toggle('hide', all.length < 2);
-
+  
   const dmy = s => s ? s.split('-').reverse().join('/') : '—';
   const days = currentCheck.start_date
     ? Math.floor((Date.now() - new Date(currentCheck.start_date + 'T00:00:00').getTime()) / 86400000) + 1
