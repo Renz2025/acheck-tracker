@@ -816,6 +816,7 @@ $('btnCreate').addEventListener('click', async ()=>{
       localStorage.setItem('acheck_user', user);
       metaSet('current_user', user);
     }
+    $('btnCancelNew').classList.add('hide');
     await save();
     loadCheck();
     showOk('Check created for ' + tail + '.');
