@@ -924,6 +924,16 @@ function migrate(){
   return true;
 }
 
+function migrateApproval(){
+  let cols = [];
+  try { cols = q("PRAGMA table_info('tasks')").map(r => r.name); } catch(e){ return false; }
+  if (!cols.length || cols.includes('approval')) return false;
+  db.run("ALTER TABLE tasks ADD COLUMN approval TEXT");
+  db.run("UPDATE tasks SET approval = CASE WHEN task_type = 'non_routine' " +
+         "THEN 'pending' ELSE 'approved' END");
+  return true;
+}
+
 /* ---------- Phase 3: task table ---------- */
 const STATUSES = ['Not Started','In Progress','Completed','On Hold','Deferred'];
 const CYCLE    = { 'Not Started':'In Progress', 'In Progress':'Completed', 'Completed':'Not Started' };
