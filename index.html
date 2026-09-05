@@ -943,7 +943,8 @@ function buildFilters(){
 function taskWhere(){
   const w = ['check_id = ?'], p = [currentCheck.check_id];
   const s = $('flStatus').value, l = $('flLog').value,
-        c = $('flCode').value,   t = $('flText').value.trim();
+        c = $('flCode').value,   ty = $('flType').value,   t = $('flText').value.trim();
+  if (ty){ w.push('task_type = ?');     p.push(ty); }
   if (s){ w.push('task_status = ?');     p.push(s); }
   if (l){ w.push('logistics_status = ?'); p.push(l); }
   if (c){ w.push('task_code = ?');       p.push(c); }
