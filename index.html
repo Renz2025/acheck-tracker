@@ -1241,14 +1241,14 @@ $('btnCancelNew').addEventListener('click', ()=>{
   loadCheck();
 });
 
-$('fSwitch').addEventListener('change', ()=>{
+$('fSwitch').addEventListener('change', async ()=>{
   metaSet('active_check', $('fSwitch').value);
-  // reset task filters so stale values from the previous check don't hide rows
   ['flStatus','flLog','flCode'].forEach(id => { const e = $(id); if (e) e.value = ''; });
   const ft = $('flText'); if (ft) ft.value = '';
   tLimit = 150;
   $('importedInfo').classList.add('hide');
-  save();
+  $('importMapWrap').classList.add('hide');
+  await save();
   loadCheck();
 });
 boot();
