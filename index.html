@@ -1104,7 +1104,6 @@ async function setApproval(taskId, state){
   await save();
   renderTasks();
   await takeSnapshot(true);
-  renderDash();
   showOk(note + '.');
 }
 
