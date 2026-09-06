@@ -1483,6 +1483,101 @@ $('btnDelCheck').addEventListener('click', async ()=>{
   showOk('Deleted ' + name + '.');
 });
 
+/* ---------- Phase 6: restore from backup ---------- */
+$('btnRestore').addEventListener('click', ()=> $('fRestore').click());
+
+$('fRestore').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if (!file) return;
+  $('fRestore').value = '';          // allow re-picking the same file later
+
+  let bytes;
+  try{
+    bytes = new Uint8Array(await file.arrayBuffer());
+  }catch(err){
+    showErr('Could not read that file: ' + err.message);
+    return;
+  }
+
+  // every SQLite file begins with the ASCII text "SQLite format 3"
+  if (String.fromCharCode.apply(null, bytes.slice(0,15)) !== 'SQLite format 3'){
+    showErr('That is not a SQLite .db file. Choose a file produced by ' +
+            'Download .db backup.');
+    return;
+  }
+
+  let test = null, summary = '';
+  try{
+    test = new SQL.Database(bytes);
+    const t = test.exec("SELECT name FROM sqlite_master WHERE type='table'");
+    const tbl = t.length ? t[0].values.map(v => v[0]) : [];
+    ['aircraft_checks','tasks'].forEach(n=>{
+      if (!tbl.includes(n)) throw new Error('missing table ' + n);
+    });
+    const nChk = test.exec('SELECT COUNT(*) FROM aircraft_checks')[0].values[0][0];
+    const nTsk = test.exec('SELECT COUNT(*) FROM tasks')[0].values[0][0];
+    const rows = test.exec('SELECT tail_number, check_type, start_date ' +
+                           'FROM aircraft_checks ORDER BY check_id');
+    const list = rows.length ? rows[0].values.map(v =>
+      '  · ' + v[0] + ' ' + (v[1] || '') +
+      (v[2] ? ' from ' + v[2].split('-').reverse().join('/') : '')).join('\n') : '  (none)';
+    summary = nChk + ' check(s), ' + nTsk + ' task(s)\n' + list;
+  }catch(err){
+    if (test) test.close();
+    showErr('That file is not a Maintenance Check Tracker backup (' + err.message + ').');
+    return;
+  }
+  test.close();
+
+  const nowChk = q('SELECT COUNT(*) AS c FROM aircraft_checks')[0].c;
+  const nowTsk = q('SELECT COUNT(*) AS c FROM tasks')[0].c;
+
+  if (!confirm('RESTORE THIS BACKUP?\n\nBackup contains:\n' + summary +
+               '\n\nThis device currently has ' + nowChk + ' check(s) and ' +
+               nowTsk + ' task(s) — all of it will be REPLACED.\n\n' +
+               'A safety copy of the current data downloads first.')) return;
+
+  // safety copy of what we are about to overwrite
+  try{
+    const blob = new Blob([db.export()], {type:'application/x-sqlite3'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = 'BEFORE_RESTORE_' + new Date().toISOString()
+                   .slice(0,16).replace(/[:T]/g,'-') + '.db';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+  }catch(err){
+    if (!confirm('Could not download the safety copy (' + err.message +
+                 '). Continue with the restore anyway?')) return;
+  }
+
+  try{
+    db.close();
+    db = new SQL.Database(bytes);
+    db.run('PRAGMA foreign_keys = ON;');
+    migrate();
+    db.run(SCHEMA);
+    migrateApproval();
+    metaSet('schema_version', SCHEMA_VERSION);
+    await idbPut(db.export());
+    currentCheck = null;
+    tLimit = 150;
+    ['flType','flStatus','flLog','flCode'].forEach(id => { const el = $(id); if (el) el.value = ''; });
+    $('flText').value = '';
+    $('importedInfo').classList.add('hide');
+    $('importMapWrap').classList.add('hide');
+    loadCheck();
+    refreshCounts();
+    setDb('ok','Restored from backup');
+    showOk('Backup restored — ' + summary.split('\n')[0] + '.');
+  }catch(err){
+    setDb('bad','Restore failed');
+    showErr('Restore failed: ' + err.message +
+            ' — reload the page to return to your previous data.');
+  }
+});
+
 boot();
 </script>
 </body>
