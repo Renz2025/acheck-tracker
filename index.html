@@ -1105,7 +1105,7 @@ function renderTasks(){
   }).join('');
 }
 
-['flType','flStatus','flLog','flCode'].forEach(id =>
+['flType','flStatus','flLog','flCode','flSort','flDir'].forEach(id =>
   $(id).addEventListener('change', ()=>{ tLimit = 150; renderTasks(); }));
 
 let flTimer = null;
