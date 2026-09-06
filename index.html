@@ -1195,7 +1195,7 @@ function today(){ return new Date().toISOString().slice(0,10); }
 
 function statusTally(){
   const rows = q('SELECT task_status AS s, COUNT(*) AS c FROM tasks WHERE check_id = ? ' +
-                 "AND IFNULL(approval,'approved') <> 'rejected' " +
+                 "AND IFNULL(approval,'approved') = 'approved' " +
                  'GROUP BY task_status', [currentCheck.check_id]);
   const t = { 'Not Started':0, 'In Progress':0, 'Completed':0, 'On Hold':0, 'Deferred':0 };
   let total = 0;
@@ -1205,6 +1205,8 @@ function statusTally(){
     total += r.c;
   });
   t._total = total;
+  t._pending = q('SELECT COUNT(*) AS c FROM tasks WHERE check_id = ? ' +
+                 "AND approval = 'pending'", [currentCheck.check_id])[0].c;
   return t;
 }
 
