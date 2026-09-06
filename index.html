@@ -1703,6 +1703,153 @@ $('btnCsv').addEventListener('click', ()=>{
   }
 });
 
+/* ---------- Phase 6: handover summary ---------- */
+/* SQLite stores CURRENT_TIMESTAMP in UTC; shift it by the device's own
+   offset so "since" means the local calendar day, not the UTC one. */
+function tzMod(){
+  const h = -new Date().getTimezoneOffset() / 60;
+  return (h >= 0 ? '+' : '') + h + ' hours';
+}
+
+function renderReport(){
+  if (!currentCheck || !db){ showErr('No active check.'); return; }
+  const since = $('repSince').value || today();
+  const id    = currentCheck.check_id;
+  const dmy   = s => s ? String(s).slice(0,10).split('-').reverse().join('/') : '—';
+
+  const t       = statusTally();
+  const total   = t._total;
+  const pct     = total ? Math.round(t['Completed'] / total * 100) : 0;
+  const hrs     = q('SELECT IFNULL(SUM(estimated_hours),0) AS all_h, ' +
+    "IFNULL(SUM(CASE WHEN task_status = 'Completed' THEN estimated_hours END),0) AS done_h " +
+    "FROM tasks WHERE check_id = ? AND IFNULL(approval,'approved') = 'approved'", [id])[0];
+  const remainH = (hrs.all_h || 0) - (hrs.done_h || 0);
+  const pendH   = q('SELECT IFNULL(SUM(estimated_hours),0) AS h FROM tasks ' +
+                    "WHERE check_id = ? AND approval = 'pending'", [id])[0].h;
+
+  const ms   = 86400000;
+  const now  = new Date(today() + 'T00:00:00');
+  const dayN = currentCheck.start_date
+    ? Math.floor((now - new Date(currentCheck.start_date + 'T00:00:00')) / ms) + 1 : null;
+  const daysLeft = currentCheck.planned_end_date
+    ? Math.round((new Date(currentCheck.planned_end_date + 'T00:00:00') - now) / ms) : null;
+
+  /* --- activity since the chosen date --- */
+  const moved = q(
+    'SELECT h.status, h.changed_by, h.changed_at, h.notes, ' +
+    't.task_no, t.description, t.task_type ' +
+    'FROM status_history h JOIN tasks t ON t.task_id = h.task_id ' +
+    'WHERE t.check_id = ? ' +
+    "AND DATE(DATETIME(h.changed_at, ?)) >= DATE(?) " +
+    "AND IFNULL(h.notes,'') NOT LIKE 'Imported%' " +
+    'ORDER BY h.history_id DESC LIMIT 60', [id, tzMod(), since]);
+
+  const blocked = q(
+    'SELECT task_no, description, task_status, comments, logistics_status, ' +
+    'estimated_hours FROM tasks WHERE check_id = ? ' +
+    "AND task_status IN ('On Hold','Deferred') " +
+    "AND IFNULL(approval,'approved') = 'approved' " +
+    'ORDER BY task_status, CAST(sequence AS INTEGER)', [id]);
+
+  const inprog = q(
+    'SELECT task_no, description, task_code, estimated_hours, comments ' +
+    'FROM tasks WHERE check_id = ? ' +
+    "AND task_status = 'In Progress' AND IFNULL(approval,'approved') = 'approved' " +
+    'ORDER BY CAST(sequence AS INTEGER)', [id]);
+
+  const pend = q(
+    'SELECT task_no, description, estimated_hours, comments FROM tasks ' +
+    "WHERE check_id = ? AND approval = 'pending' ORDER BY task_id", [id]);
+
+  const rej = q('SELECT COUNT(*) AS c FROM tasks WHERE check_id = ? ' +
+                "AND approval = 'rejected'", [id])[0].c;
+
+  /* --- build --- */
+  const sec = (title, body) =>
+    '<div class="rsec"><h4>' + title + '</h4>' + body + '</div>';
+  const none = msg => '<div class="rnone">' + msg + '</div>';
+  const line = (head, sub) => '<div class="rline"><b>' + head + '</b>' +
+    (sub ? '<span class="rw">' + sub + '</span>' : '') + '</div>';
+
+  let html =
+    '<div class="rsec"><h4>Handover summary</h4>' +
+    '<div class="kv"><span>Aircraft</span><span>' + esc(currentCheck.tail_number) +
+      '</span></div>' +
+    '<div class="kv"><span>Check</span><span>' + esc(currentCheck.check_type || '—') +
+      '</span></div>' +
+    '<div class="kv"><span>Started</span><span>' + dmy(currentCheck.start_date) +
+      (dayN ? ' (day ' + dayN + ')' : '') + '</span></div>' +
+    '<div class="kv"><span>Planned end</span><span>' + dmy(currentCheck.planned_end_date) +
+      (daysLeft === null ? '' : ' (' + daysLeft + ' days)') + '</span></div>' +
+    '<div class="kv"><span>Prepared</span><span>' +
+      new Date().toLocaleString('en-AU') + '</span></div>' +
+    '<div class="kv"><span>Prepared by</span><span>' + esc(currentUser || 'not set') +
+      '</span></div>' +
+    '</div>';
+
+  html += sec('Position',
+    '<div class="kv"><span>Approved tasks</span><span>' + total + '</span></div>' +
+    '<div class="kv"><span>Complete</span><span>' + t['Completed'] + ' (' + pct +
+      '%)</span></div>' +
+    '<div class="kv"><span>In progress</span><span>' + t['In Progress'] + '</span></div>' +
+    '<div class="kv"><span>Not started</span><span>' + t['Not Started'] + '</span></div>' +
+    '<div class="kv"><span>On hold / deferred</span><span>' +
+      (t['On Hold'] + t['Deferred']) + '</span></div>' +
+    '<div class="kv"><span>Est. hours remaining</span><span>' + remainH.toFixed(1) +
+      '</span></div>' +
+    (pend.length
+      ? '<div class="kv"><span>Awaiting approval</span><span>' + pend.length +
+        ' task(s), ' + pendH.toFixed(1) + ' h</span></div>' +
+        '<div class="kv"><span>Potential hours remaining</span><span>' +
+        (remainH + pendH).toFixed(1) + '</span></div>'
+      : '') +
+    (rej ? '<div class="kv"><span>Rejected (excluded)</span><span>' + rej +
+           '</span></div>' : ''));
+
+  html += sec('Currently in progress', inprog.length
+    ? inprog.map(r => line(
+        esc(r.task_no || '(no task no)') + ' — ' + esc(r.description),
+        [r.task_code ? esc(r.task_code) : '',
+         r.estimated_hours != null ? r.estimated_hours + ' h' : '',
+         r.comments ? esc(r.comments) : ''].filter(Boolean).join(' · '))).join('')
+    : none('No tasks currently in progress.'));
+
+  html += sec('On hold / deferred — needs attention', blocked.length
+    ? blocked.map(r => line(
+        '[' + esc(r.task_status) + '] ' + esc(r.task_no || '(no task no)') + ' — ' +
+        esc(r.description),
+        [r.logistics_status ? 'Logistics: ' + esc(r.logistics_status) : '',
+         r.estimated_hours != null ? r.estimated_hours + ' h' : '',
+         r.comments ? 'Note: ' + esc(r.comments) : 'No reason recorded'
+        ].filter(Boolean).join(' · '))).join('')
+    : none('Nothing on hold or deferred.'));
+
+  html += sec('Unscheduled work awaiting approval', pend.length
+    ? pend.map(r => line(
+        esc(r.task_no || '(no task no)') + ' — ' + esc(r.description),
+        [r.estimated_hours != null ? r.estimated_hours + ' h' : 'hours not estimated',
+         r.comments ? esc(r.comments) : ''].filter(Boolean).join(' · '))).join('')
+    : none('No unscheduled work awaiting approval.'));
+
+  html += sec('Activity since ' + dmy(since), moved.length
+    ? moved.map(r => line(
+        esc(r.status) + ' — ' + esc(r.task_no || '(no task no)') + ' ' +
+        esc(String(r.description).slice(0,70)),
+        (r.task_type === 'non_routine' ? 'NRT · ' : '') +
+        esc(r.changed_by || 'unknown') + ' · ' +
+        esc(String(r.changed_at).slice(0,16).replace('T',' ')) +
+        (r.notes ? ' · ' + esc(r.notes) : ''))).join('')
+    : none('No status changes recorded in this period.'));
+
+  $('repOut').innerHTML = html;
+}
+
+$('btnRep').addEventListener('click', renderReport);
+$('btnRepPrint').addEventListener('click', ()=>{
+  if (!$('repOut').innerHTML.trim()) renderReport();
+  setTimeout(()=> window.print(), 120);
+});
+
 boot();
 </script>
 </body>
