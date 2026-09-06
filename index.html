@@ -1248,6 +1248,7 @@ $('tList').addEventListener('click', async (e)=>{
   if ((el = hit('unapprove'))){ await setApproval(+el.dataset.unapprove,'pending');  return; }
   if ((el = hit('del'))){       await deleteTask(+el.dataset.del);                   return; }
   if ((el = hit('cycle'))){     await cycleStatus(+el.dataset.cycle);                return; }
+  if ((el = hit('hrs'))){       startHoursEdit(el, +el.dataset.hrs);                 return; }
   if ((el = hit('open')))       openSheet(+el.dataset.open);
 });
 
