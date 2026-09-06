@@ -2063,6 +2063,95 @@ function startHoursEdit(chip, taskId){
   inp.addEventListener('click', (ev)=> ev.stopPropagation());
 }
 
+/* ---------- Phase 7c: inline quoted + logistics edit ---------- */
+async function commitField(taskId, col, val, label, oldVal){
+  const st = q('SELECT task_status FROM tasks WHERE task_id = ?', [taskId]);
+  db.run('UPDATE tasks SET ' + col + ' = ? WHERE task_id = ?', [val, taskId]);
+  db.run('INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?,?,?,?)',
+         [taskId, (st.length && st[0].task_status) || 'Not Started', currentUser || null,
+          label + ' ' + (oldVal == null || oldVal === '' ? '—' : oldVal) +
+          ' → ' + (val == null || val === '' ? '—' : val)]);
+  await save();
+  // logistics feeds the #flLog filter list, so rebuild it without losing the selection
+  const keep = $('flLog').value;
+  buildFilters();
+  if ([...$('flLog').options].some(o => o.value === keep)) $('flLog').value = keep;
+  renderTasks();
+  renderDash();
+  showOk(label + ' updated.');
+}
+
+/* --- logistics status: free text --- */
+function startLogEdit(chip, taskId){
+  if (chip.querySelector('input')) return;
+  const row = q('SELECT logistics_status FROM tasks WHERE task_id = ?', [taskId]);
+  if (!row.length) return;
+  const old = row[0].logistics_status;
+
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'ledit';
+  inp.setAttribute('autocapitalize','characters');
+  inp.value = old != null ? old : '';
+  chip.innerHTML = '';
+  chip.appendChild(inp);
+  inp.focus();
+  inp.select();
+
+  let done = false;
+  const finish = async (commit)=>{
+    if (done) return;
+    done = true;
+    if (!commit){ renderTasks(); return; }
+    const raw = inp.value.trim();
+    const val = raw === '' ? null : raw;
+    if (val === (old == null || old === '' ? null : old)){ renderTasks(); return; }
+    await commitField(taskId, 'logistics_status', val, 'Logistics status', old);
+  };
+
+  inp.addEventListener('keydown', (ev)=>{
+    if (ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    if (ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', ()=> finish(true));
+  inp.addEventListener('click', (ev)=> ev.stopPropagation());
+}
+
+/* --- quoted: Y / N / blank --- */
+function startQuotedEdit(chip, taskId){
+  if (chip.querySelector('select')) return;
+  const row = q('SELECT quoted FROM tasks WHERE task_id = ?', [taskId]);
+  if (!row.length) return;
+  const old = (row[0].quoted == null ? '' : String(row[0].quoted).trim().toUpperCase());
+
+  const sel = document.createElement('select');
+  sel.className = 'qsel';
+  sel.innerHTML = '<option value="">—</option>' +
+                  '<option value="Y">Y</option>' +
+                  '<option value="N">N</option>';
+  sel.value = (old === 'Y' || old === 'N') ? old : '';
+  chip.innerHTML = '';
+  chip.appendChild(sel);
+  sel.focus();
+
+  let done = false;
+  const finish = async (commit)=>{
+    if (done) return;
+    done = true;
+    if (!commit){ renderTasks(); return; }
+    const val = sel.value === '' ? null : sel.value;
+    if ((val || '') === old){ renderTasks(); return; }
+    await commitField(taskId, 'quoted', val, 'Quoted', old);
+  };
+
+  sel.addEventListener('change', ()=> finish(true));
+  sel.addEventListener('keydown', (ev)=>{
+    if (ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  });
+  sel.addEventListener('blur', ()=> finish(true));
+  sel.addEventListener('click', (ev)=> ev.stopPropagation());
+}
+  
 boot();
 </script>
 </body>
