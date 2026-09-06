@@ -991,8 +991,12 @@ function renderTasks(){
   const cmap = {};
   counts.forEach(r=>{ cmap[r.s || 'Not Started'] = r.c; total += r.c;
                       if (r.s === 'Completed') done += r.c; });
+  const nPend = q('SELECT COUNT(*) AS c FROM tasks WHERE check_id = ? ' +
+                  "AND approval = 'pending'", [currentCheck.check_id])[0].c;
   $('tSum').innerHTML =
     '<span class="chip">' + total + ' shown</span>' +
+    (nPend ? '<span class="chip" style="border-color:var(--warn);color:#f0d48a">' +
+             nPend + ' awaiting approval</span>' : '') +
     STATUSES.map(s => cmap[s] ? '<span class="chip">' + s + ': ' + cmap[s] + '</span>' : '')
             .join('') +
     '<span class="chip">' + (total ? Math.round(done/total*100) : 0) + '% complete</span>';
