@@ -1316,13 +1316,16 @@ function renderDash(){
       '<div class="lbl">Est. hours left</div></div>' +
     '<div class="tile"><div class="big">' + dayTxt + '</div>' +
       '<div class="lbl">Of check</div></div>' +
-        '<div class="tile"><div class="big">' +
+            '<div class="tile"><div class="big">' +
       (daysLeft === null ? '—' : daysLeft) + '</div>' +
       '<div class="lbl">Days to planned end</div></div>' +
     (t._pending
       ? '<div class="tile" style="border-color:var(--warn)">' +
         '<div class="big" style="color:#f0d48a">' + t._pending + '</div>' +
-        '<div class="lbl">Awaiting approval</div></div>'
+        '<div class="lbl">Awaiting approval</div></div>' +
+        '<div class="tile" style="border-color:var(--warn)">' +
+        '<div class="big" style="color:#f0d48a">' + (remainH + pendH).toFixed(1) + '</div>' +
+        '<div class="lbl">Potential hours left</div></div>'
       : '');
 
   $('dStatusBars').innerHTML = STATUSES.map((s,i) =>
