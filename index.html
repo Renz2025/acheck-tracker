@@ -617,6 +617,7 @@ function loadCheck(){
     $('importCard').classList.add('hide');
     $('tasksCard').classList.add('hide');
     $('dashCard').classList.add('hide');
+    $('repCard').classList.add('hide');
     $('hdrSub').textContent = 'no check yet';
     if (!$('fStart').value) $('fStart').value = today();
     if (currentUser) $('fUser').value = currentUser;
@@ -660,6 +661,9 @@ function loadCheck(){
 
   showTasks();
   showDash();
+  $('repCard').classList.remove('hide');
+  if (!$('repSince').value) $('repSince').value = today();
+  $('repOut').innerHTML = '';
 }
 
 function refreshCounts(){
@@ -1471,6 +1475,7 @@ $('btnNewCheck').addEventListener('click', ()=>{
   $('tasksCard').classList.add('hide');
   $('dashCard').classList.add('hide');
   $('fStart').value = today();
+  $('repCard').classList.add('hide');
   $('fEnd').value = '';
   if (currentUser) $('fUser').value = currentUser;
   $('setupCard').scrollIntoView({ behavior:'smooth', block:'start' });
