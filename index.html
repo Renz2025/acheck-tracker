@@ -1905,6 +1905,90 @@ $('btnRepPrint').addEventListener('click', ()=>{
   setTimeout(()=> window.print(), 120);
 });
 
+/* ---------- Phase 7: manual task entry ---------- */
+function openAdd(){
+  if (!currentCheck){ showErr('No active check.'); return; }
+  $('aType').value = 'non_routine';
+  $('aDesc').value = '';
+  $('aNo').value   = '';
+  $('aCode').value = '';
+  $('aHrs').value  = '';
+  $('aLog').value  = '';
+  $('aDue').value  = '';
+  $('aComments').value = '';
+  $('aDupe').innerHTML = '';
+  $('aStat').innerHTML = STATUSES.map(s =>
+    '<option value="' + esc(s) + '">' + s + '</option>').join('');
+  // next sequence number, so a manual task lands at the end of the list
+  const mx = q('SELECT IFNULL(MAX(CAST(sequence AS INTEGER)),0) AS m FROM tasks ' +
+               'WHERE check_id = ?', [currentCheck.check_id])[0].m;
+  $('aSeq').value = mx + 1;
+  $('aSheet').classList.add('show');
+  setTimeout(()=> $('aDesc').focus(), 80);
+}
+
+function closeAdd(){ $('aSheet').classList.remove('show'); }
+
+$('btnAddTask').addEventListener('click', openAdd);
+$('aBack').addEventListener('click', closeAdd);
+$('aClose').addEventListener('click', closeAdd);
+
+/* live duplicate warning on task no */
+$('aNo').addEventListener('input', ()=>{
+  const v = $('aNo').value.trim();
+  if (!v || !currentCheck){ $('aDupe').innerHTML = ''; return; }
+  const hit = q('SELECT task_no FROM tasks WHERE check_id = ? ' +
+                'AND UPPER(TRIM(task_no)) = ? LIMIT 1',
+                [currentCheck.check_id, v.toUpperCase()]);
+  $('aDupe').innerHTML = hit.length
+    ? '<div class="warnline">Task no ' + esc(v) +
+      ' already exists in this check. You can still add it, but it will be ' +
+      'harder to tell them apart.</div>'
+    : '';
+});
+
+$('aSave').addEventListener('click', async ()=>{
+  if (!currentCheck){ showErr('No active check.'); return; }
+  const desc = $('aDesc').value.trim();
+  if (!desc){ showErr('Description is required.'); $('aDesc').focus(); return; }
+
+  const type = $('aType').value === 'routine' ? 'routine' : 'non_routine';
+  const appr = type === 'non_routine' ? 'pending' : 'approved';
+  const st   = $('aStat').value || 'Not Started';
+  const hRaw = $('aHrs').value.trim();
+  const hrs  = hRaw === '' ? null : (isNaN(parseFloat(hRaw)) ? null : parseFloat(hRaw));
+  const nn   = v => { const s = String(v ?? '').trim(); return s === '' ? null : s; };
+
+  try{
+    db.run(
+      'INSERT INTO tasks (check_id, task_type, task_no, sequence, description, ' +
+      'task_code, next_due, estimated_hours, logistics_status, task_status, ' +
+      'approval, comments, created_by) ' +
+      'VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [currentCheck.check_id, type, nn($('aNo').value), nn($('aSeq').value), desc,
+       nn($('aCode').value), nn($('aDue').value), hrs, nn($('aLog').value),
+       st, appr, nn($('aComments').value), currentUser || null]);
+    const taskId = db.exec('SELECT last_insert_rowid() AS id')[0].values[0][0];
+    db.run('INSERT INTO status_history (task_id, status, changed_by, notes) ' +
+           'VALUES (?,?,?,?)',
+           [taskId, st, currentUser || null,
+            'Added manually (' + (type === 'non_routine' ? 'unscheduled' : 'scheduled') + ')']);
+  }catch(err){
+    showErr('Could not add task: ' + err.message);
+    return;
+  }
+
+  await save();
+  closeAdd();
+  buildFilters();
+  tLimit = 150;
+  renderTasks();
+  await takeSnapshot(true);
+  showOk(type === 'non_routine'
+    ? 'Unscheduled task added — awaiting approval.'
+    : 'Scheduled task added.');
+});
+  
 boot();
 </script>
 </body>
