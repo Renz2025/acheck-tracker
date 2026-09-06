@@ -1229,8 +1229,8 @@ function renderTasks(){
       'Pri ' + chipHtml('pri', r.task_id,
                  r.priority ? String(r.priority) : '—',
                  priClass(r.priority), ''),
-      'MEL/CDL ' + chipHtml('mel', r.task_id,
-                 r.mel_cdl_reference ? shorten(r.mel_cdl_reference, 20) : 'set',
+            'NAD/MEL/CDL/ICA ' + chipHtml('mel', r.task_id,
+                 r.mel_cdl_reference ? shorten(r.mel_cdl_reference, 14) : 'set',
                  '', r.mel_cdl_reference || '')
     ].join(' · ');
     
