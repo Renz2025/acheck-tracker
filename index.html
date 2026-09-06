@@ -250,7 +250,10 @@
     <div class="bar"><i id="tBar"></i></div>
     <div class="sumbar" id="tSum"></div>
     <div class="tlist" id="tList"></div>
-    <div class="btns"><button class="ghost sm hide" id="btnMore">Load more</button></div>
+    <div class="btns">
+      <button class="ghost sm hide" id="btnMore">Load more</button>
+      <button class="ghost sm" id="btnCsv">Export CSV</button>
+    </div>
   </div>
 
   <!-- DASHBOARD -->
@@ -1575,6 +1578,92 @@ $('fRestore').addEventListener('change', async (e)=>{
     setDb('bad','Restore failed');
     showErr('Restore failed: ' + err.message +
             ' — reload the page to return to your previous data.');
+  }
+});
+
+/* ---------- Phase 6: CSV export ---------- */
+function csvCell(v){
+  const s = (v === null || v === undefined) ? '' : String(v);
+  // quote if it contains a comma, quote, newline, or leading/trailing space
+  return /[",\r\n]|^\s|\s$/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+
+const CSV_COLS = [
+  ['task_no',          'Task no'],
+  ['sequence',         'Sequence'],
+  ['description',      'Description'],
+  ['task_type_label',  'Type'],
+  ['approval_label',   'Approval'],
+  ['task_status',      'Task status'],
+  ['task_code',        'Task code'],
+  ['logistics_status', 'Logistics status'],
+  ['interval_spec',    'Interval'],
+  ['next_due',         'Next due'],
+  ['est_next_due',     'Est next due'],
+  ['estimated_hours',  'Estimated hours'],
+  ['quoted',           'Quoted'],
+  ['comments',         'Comments'],
+  ['last_change',      'Last updated'],
+  ['last_by',          'Updated by']
+];
+
+$('btnCsv').addEventListener('click', ()=>{
+  if (!currentCheck || !db){ showErr('No active check.'); return; }
+  const { sql, params } = taskWhere();
+  const rows = q('SELECT t.*, ' +
+    '(SELECT changed_at FROM status_history h WHERE h.task_id = t.task_id ' +
+    ' ORDER BY h.history_id DESC LIMIT 1) AS last_change, ' +
+    '(SELECT changed_by FROM status_history h WHERE h.task_id = t.task_id ' +
+    ' ORDER BY h.history_id DESC LIMIT 1) AS last_by ' +
+    'FROM tasks t WHERE ' + sql.replace(/\bcheck_id\b/g, 't.check_id')
+                              .replace(/\btask_status\b/g, 't.task_status')
+                              .replace(/\btask_type\b/g, 't.task_type') +
+    ' ORDER BY ' + orderBy(), params);
+
+  if (!rows.length){ showErr('Nothing to export — no tasks match the current filters.'); return; }
+
+  rows.forEach(r=>{
+    r.task_type_label = r.task_type === 'non_routine' ? 'Unscheduled (NRT)' : 'Scheduled';
+    r.approval_label  = r.task_type === 'non_routine'
+      ? (r.approval || 'pending') : 'n/a';
+  });
+
+  // metadata header so a printed or emailed sheet is self-describing
+  const filt = [
+    $('flType').value   ? 'type=' + $('flType').value       : '',
+    $('flStatus').value ? 'status=' + $('flStatus').value   : '',
+    $('flLog').value    ? 'logistics=' + $('flLog').value   : '',
+    $('flCode').value   ? 'code=' + $('flCode').value       : '',
+    $('flText').value.trim() ? 'search=' + $('flText').value.trim() : ''
+  ].filter(Boolean).join('; ') || 'none';
+
+  const lines = [];
+  lines.push(['Maintenance Check Tracker export'].map(csvCell).join(','));
+  lines.push(['Aircraft', currentCheck.tail_number].map(csvCell).join(','));
+  lines.push(['Check type', currentCheck.check_type || ''].map(csvCell).join(','));
+  lines.push(['Check start', currentCheck.start_date || ''].map(csvCell).join(','));
+  lines.push(['Exported', new Date().toLocaleString('en-AU')].map(csvCell).join(','));
+  lines.push(['Exported by', currentUser || 'not set'].map(csvCell).join(','));
+  lines.push(['Filters applied', filt].map(csvCell).join(','));
+  lines.push(['Rows', rows.length].map(csvCell).join(','));
+  lines.push('');
+  lines.push(CSV_COLS.map(c => csvCell(c[1])).join(','));
+  rows.forEach(r => lines.push(CSV_COLS.map(c => csvCell(r[c[0]])).join(',')));
+
+  // \ufeff BOM makes Excel honour UTF-8 so the · and — characters survive
+  const csv = '\ufeff' + lines.join('\r\n') + '\r\n';
+  try{
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    const tail = currentCheck.tail_number.replace(/[^A-Z0-9]/gi,'');
+    a.href = url;
+    a.download = 'tasks_' + tail + '_' + today() + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 3000);
+    showOk('Exported ' + rows.length + ' task' + (rows.length === 1 ? '' : 's') + ' to CSV.');
+  }catch(err){
+    showErr('Export failed: ' + err.message);
   }
 });
 
