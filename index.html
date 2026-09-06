@@ -641,9 +641,9 @@ async function boot(){
     if (!window.indexedDB) throw new Error('IndexedDB unavailable. Are you in Private Browsing?');
 
     SQL = await Promise.race([
-      initSqlJs({ locateFile: f => 'https://cdn.jsdelivr.net/npm/sql.js@1.10.3/dist/' + f }),
+      initSqlJs({ locateFile: f => './' + f }),
       new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('sql.js timed out after 20s — CDN unreachable or blocked.')), 20000)
+        setTimeout(() => reject(new Error('sql.js timed out after 20s — sql-wasm.wasm missing or blocked. Check it is in the repo root.')), 20000)
       )
     ]);
 
