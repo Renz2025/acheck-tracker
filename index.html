@@ -1053,7 +1053,7 @@ function renderTasks(){
                  'task_code, logistics_status, next_due, estimated_hours, ' +
                  'task_type, approval ' +
                  'FROM tasks WHERE ' + sql +
-                 ' ORDER BY CAST(sequence AS INTEGER), sequence, task_id LIMIT ' + (tLimit+1),
+                 ' ORDER BY ' + orderBy() + ' LIMIT ' + (tLimit+1),
                  params);
   const more = rows.length > tLimit;
   if (more) rows.pop();
