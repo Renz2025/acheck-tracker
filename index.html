@@ -193,6 +193,14 @@
   .qsel{width:auto !important;padding:2px 6px !important;font-size:13px !important;
         border-radius:5px !important}  
 
+  /* ---- Phase 7d: assigned / priority / MEL editing ---- */
+  .tmeta2{margin-top:3px}
+  .pri-high{color:var(--bad) !important;border-color:var(--bad) !important}
+  .pri-medium{color:#f0d48a !important;border-color:#f0d48a !important}
+  .pri-low{color:var(--dim) !important}
+  .aedit{width:150px !important;max-width:50vw;padding:2px 6px !important;
+         font-size:13px !important;border-radius:5px !important}
+  
 </style>
 </head>
 <body>
@@ -1135,6 +1143,27 @@ function orderBy(){
   return SORTS[key].replace(/\$D/g, dir);
 }
 
+/* small editable chip used on the task rows */
+function chipHtml(attr, id, text, extraClass, title){
+  return '<span class="hchip' + (extraClass ? ' ' + extraClass : '') + '"' +
+         ' data-' + attr + '="' + id + '"' +
+         (title ? ' title="' + esc(title) + '"' : '') + '>' +
+         esc(text) + '</span>';
+}
+
+function priClass(p){
+  const v = String(p || '').trim().toLowerCase();
+  if (v === 'high' || v === '1') return 'pri-high';
+  if (v === 'medium' || v === 'med' || v === '2') return 'pri-medium';
+  if (v === 'low' || v === '3') return 'pri-low';
+  return '';
+}
+
+function shorten(s, n){
+  const t = String(s || '').trim();
+  return t.length > n ? t.slice(0, n - 1) + '…' : t;
+}
+  
 function renderTasks(){
   if (!currentCheck || !db) return;
   const { sql, params } = taskWhere();
@@ -1193,6 +1222,18 @@ function renderTasks(){
       '</span>'
     ].filter(Boolean).join(' · ');
 
+    const meta2 = [
+      'Who ' + chipHtml('asg', r.task_id,
+                 r.assigned_to ? shorten(r.assigned_to, 18) : 'set',
+                 '', r.assigned_to || ''),
+      'Pri ' + chipHtml('pri', r.task_id,
+                 r.priority ? String(r.priority) : '—',
+                 priClass(r.priority), ''),
+      'MEL/CDL ' + chipHtml('mel', r.task_id,
+                 r.mel_cdl_reference ? shorten(r.mel_cdl_reference, 20) : 'set',
+                 '', r.mel_cdl_reference || '')
+    ].join(' · ');
+    
     let acts;
     if (appr === 'pending'){
       acts = '<span class="abtn go" data-approve="' + r.task_id + '">Approve</span>' +
@@ -1214,7 +1255,8 @@ function renderTasks(){
           (appr === 'pending' ? ' · awaiting approval' : '') +
           (appr === 'rejected' ? ' · rejected' : '') + '</div>' +
         '<div class="tdesc">' + esc(r.description) + '</div>' +
-        (meta ? '<div class="tmeta">' + meta + '</div>' : '') +
+      '<div class="tmeta">' + meta + '</div>' +
+      '<div class="tmeta tmeta2">' + meta2 + '</div>' +
       '</div>' +
       '<span class="tacts">' + acts + '</span>' +
       '<span class="chev" data-open="' + r.task_id + '">&#10095;</span>' +
@@ -1263,6 +1305,11 @@ $('tList').addEventListener('click', async (e)=>{
   if ((el = hit('hrs'))){       startHoursEdit(el, +el.dataset.hrs);                 return; }
   if ((el = hit('log'))){       startLogEdit(el, +el.dataset.log);                   return; }
   if ((el = hit('qtd'))){       startQuotedEdit(el, +el.dataset.qtd);                return; }
+  if ((el = hit('asg'))){       startTextEdit(el, +el.dataset.asg,
+                                  'assigned_to', 'Assigned to');                     return; }
+  if ((el = hit('pri'))){       startPriorityEdit(el, +el.dataset.pri);              return; }
+  if ((el = hit('mel'))){       startTextEdit(el, +el.dataset.mel,
+                                  'mel_cdl_reference', 'MEL/CDL ref');               return; }
   if ((el = hit('open')))       openSheet(+el.dataset.open);
 });
 
