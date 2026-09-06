@@ -205,6 +205,15 @@
   .pri-low{color:var(--dim) !important}
   .aedit{width:150px !important;max-width:50vw;padding:2px 6px !important;
          font-size:13px !important;border-radius:5px !important}
+
+  /* ---- Phase 8: service worker update bar ---- */
+  #swBar{position:fixed;left:0;right:0;bottom:0;z-index:60;display:none;
+         padding:12px 14px;background:#1f6feb;color:#fff;font-size:14px;
+         align-items:center;gap:12px;box-shadow:0 -2px 12px rgba(0,0,0,.4)}
+  #swBar.show{display:flex}
+  #swBar span{flex:1}
+  #swBar button{padding:7px 14px;font-size:13px;background:#fff;color:#1f6feb;
+                border:0;border-radius:7px;font-weight:600;width:auto}
   
 </style>
 </head>
