@@ -229,8 +229,23 @@
       <div><label>Task code</label><select id="flCode"></select></div>
     </div>
     <div class="filters">
-      <div style="min-width:100%"><label>Search description or task no</label>
-        <input id="flText" placeholder="type to filter…" autocapitalize="none"></div>
+      <div style="min-width:100%"><label>Search</label>
+        <input id="flText" placeholder="task no, description, code, comments…" autocapitalize="none"></div>
+    </div>
+    <div class="filters">
+      <div><label>Sort by</label><select id="flSort">
+        <option value="seq">Sequence</option>
+        <option value="task_no">Task no</option>
+        <option value="status">Task status</option>
+        <option value="due">Next due</option>
+        <option value="hours">Estimated hours</option>
+        <option value="code">Task code</option>
+        <option value="added">Recently added</option>
+      </select></div>
+      <div><label>Direction</label><select id="flDir">
+        <option value="asc">Ascending</option>
+        <option value="desc">Descending</option>
+      </select></div>
     </div>
     <div class="bar"><i id="tBar"></i></div>
     <div class="sumbar" id="tSum"></div>
