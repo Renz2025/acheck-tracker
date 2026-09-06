@@ -1006,6 +1006,25 @@ function taskWhere(){
   }
   return { sql: w.join(' AND '), params: p };
 }
+  
+/* ---------- sorting ---------- */
+const SORTS = {
+  seq:     'CAST(sequence AS INTEGER) $D, sequence $D, task_id $D',
+  task_no: "IFNULL(task_no,'') = '' ASC, task_no $D, task_id $D",
+  status:  "CASE task_status WHEN 'Not Started' THEN 0 WHEN 'In Progress' THEN 1 " +
+           "WHEN 'On Hold' THEN 2 WHEN 'Deferred' THEN 3 WHEN 'Completed' THEN 4 " +
+           'ELSE 5 END $D, CAST(sequence AS INTEGER) ASC, task_id ASC',
+  due:     "IFNULL(next_due,'') = '' ASC, next_due $D, task_id $D",
+  hours:   'estimated_hours IS NULL ASC, estimated_hours $D, task_id $D',
+  code:    "IFNULL(task_code,'') = '' ASC, task_code $D, task_id $D",
+  added:   'task_id $D'
+};
+
+function orderBy(){
+  const key = SORTS[$('flSort').value] ? $('flSort').value : 'seq';
+  const dir = $('flDir').value === 'desc' ? 'DESC' : 'ASC';
+  return SORTS[key].replace(/\$D/g, dir);
+}
 
 function renderTasks(){
   if (!currentCheck || !db) return;
