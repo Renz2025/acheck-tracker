@@ -964,36 +964,49 @@ function esc(s){
   return String(s ?? '').replace(/[&<>"']/g, c =>
     ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+
 function fillSelect(el, values, allLabel){
   const keep = el.value;
   el.innerHTML = '<option value="">' + allLabel + '</option>' +
     values.map(v => '<option value="'+esc(v)+'">'+esc(v)+'</option>').join('');
   if (keep) el.value = keep;
 }
+
 function distinct(col){
   if (!currentCheck) return [];
   return q('SELECT DISTINCT '+col+' AS v FROM tasks WHERE check_id = ? AND '+col+
            " IS NOT NULL AND TRIM("+col+") <> '' ORDER BY v", [currentCheck.check_id])
          .map(r => r.v);
 }
+
 function buildFilters(){
   fillSelect($('flStatus'), STATUSES.concat(
     distinct('task_status').filter(v => !STATUSES.includes(v))), 'All statuses');
   fillSelect($('flLog'),  distinct('logistics_status'), 'All logistics');
   fillSelect($('flCode'), distinct('task_code'),        'All codes');
 }
+
 function taskWhere(){
   const w = ['check_id = ?'], p = [currentCheck.check_id];
   const s = $('flStatus').value, l = $('flLog').value,
-        c = $('flCode').value,   ty = $('flType').value,   t = $('flText').value.trim();
-  if (ty){ w.push('task_type = ?');     p.push(ty); }
-  if (s){ w.push('task_status = ?');     p.push(s); }
-  if (l){ w.push('logistics_status = ?'); p.push(l); }
-  if (c){ w.push('task_code = ?');       p.push(c); }
-  if (t){ w.push('(description LIKE ? OR IFNULL(task_no,\'\') LIKE ?)');
-          p.push('%'+t+'%','%'+t+'%'); }
+        c = $('flCode').value,   ty = $('flType').value,
+        t = $('flText').value.trim();
+  if (ty){ w.push('task_type = ?');        p.push(ty); }
+  if (s){  w.push('task_status = ?');      p.push(s);  }
+  if (l){  w.push('logistics_status = ?'); p.push(l);  }
+  if (c){  w.push('task_code = ?');        p.push(c);  }
+  if (t){
+    // every whitespace-separated term must match somewhere in the row
+    t.split(/\s+/).slice(0,6).forEach(term=>{
+      w.push("(IFNULL(description,'') LIKE ? OR IFNULL(task_no,'') LIKE ? " +
+             "OR IFNULL(task_code,'') LIKE ? OR IFNULL(comments,'') LIKE ?)");
+      const k = '%' + term + '%';
+      p.push(k, k, k, k);
+    });
+  }
   return { sql: w.join(' AND '), params: p };
 }
+
 function renderTasks(){
   if (!currentCheck || !db) return;
   const { sql, params } = taskWhere();
