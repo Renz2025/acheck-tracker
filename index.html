@@ -1287,6 +1287,9 @@ function renderDash(){
     "FROM tasks WHERE check_id = ? AND IFNULL(approval,'approved') = 'approved'",
     [currentCheck.check_id])[0];
   const remainH = (hrs.all_h || 0) - (hrs.done_h || 0);
+  const pendH = q('SELECT IFNULL(SUM(estimated_hours),0) AS h FROM tasks ' +
+                  "WHERE check_id = ? AND approval = 'pending'",
+                  [currentCheck.check_id])[0].h;
 
   // day of check / days remaining against planned end
   const ms = 86400000;
