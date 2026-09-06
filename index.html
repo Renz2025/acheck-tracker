@@ -1177,10 +1177,16 @@ function renderTasks(){
     const st   = r.task_status || 'Not Started';
     const nrt  = r.task_type === 'non_routine';
     const appr = nrt ? (r.approval || 'pending') : 'approved';
+    const logTxt   = String(r.logistics_status || '').trim();
+    const logShort = logTxt.length > 28 ? logTxt.slice(0,27) + '…' : logTxt;
+    const qtd      = String(r.quoted || '').trim();
     const meta = [
       r.sequence ? 'Seq ' + esc(r.sequence) : '',
       r.task_code ? esc(r.task_code) : '',
-      r.logistics_status ? 'Log: ' + esc(r.logistics_status) : '',
+      'Log: <span class="hchip" data-log="' + r.task_id + '" title="' + esc(logTxt) + '">' +
+        (logShort ? esc(logShort) : 'set') + '</span>',
+      'Quoted <span class="hchip" data-qtd="' + r.task_id + '">' +
+        (qtd ? esc(qtd) : '—') + '</span>',
       r.next_due ? 'Due ' + esc(r.next_due) : '',
       '<span class="hchip" data-hrs="' + r.task_id + '">' +
         (r.estimated_hours != null ? r.estimated_hours + ' h' : 'set h') +
