@@ -1261,6 +1261,8 @@ $('tList').addEventListener('click', async (e)=>{
   if ((el = hit('del'))){       await deleteTask(+el.dataset.del);                   return; }
   if ((el = hit('cycle'))){     await cycleStatus(+el.dataset.cycle);                return; }
   if ((el = hit('hrs'))){       startHoursEdit(el, +el.dataset.hrs);                 return; }
+  if ((el = hit('log'))){       startLogEdit(el, +el.dataset.log);                   return; }
+  if ((el = hit('qtd'))){       startQuotedEdit(el, +el.dataset.qtd);                return; }
   if ((el = hit('open')))       openSheet(+el.dataset.open);
 });
 
