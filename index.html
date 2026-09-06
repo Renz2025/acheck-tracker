@@ -148,7 +148,30 @@
   .abtn.mut{color:var(--dim)}
   .tacts{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;flex:0 0 auto}
   .note{font-size:12px;color:var(--dim);padding:8px 0}
-  
+    /* ---- Phase 6: handover report ---- */
+  .rsec{margin:18px 0}
+  .rsec h4{margin:0 0 6px;font-size:12px;color:var(--dim);
+           text-transform:uppercase;letter-spacing:.5px}
+  .rline{padding:7px 0;border-bottom:1px solid var(--line);font-size:13px}
+  .rline:last-child{border-bottom:0}
+  .rline b{font-weight:600}
+  .rline .rw{color:var(--dim);font-size:11px;display:block;margin-top:2px}
+  .rnone{color:var(--dim);font-size:13px;padding:7px 0}
+
+  @media print{
+    body{background:#fff;color:#000}
+    header,.banner,.sheet{display:none !important}
+    .card{display:none !important}
+    #repCard{display:block !important;background:#fff;border:0;padding:0;margin:0}
+    #repCard .btns,#repCard label,#repCard select,#repCard input,
+    #repCard p.hint,#repCard>h2{display:none !important}
+    #repOut,#repOut *{color:#000 !important;background:#fff !important}
+    #repOut .kv,#repOut .rline{border-color:#bbb !important}
+    #repOut .tile{border:1px solid #bbb !important}
+    .rsec{break-inside:avoid}
+    main{padding:0;max-width:none}
+  }
+
 </style>
 </head>
 <body>
