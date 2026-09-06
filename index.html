@@ -1998,7 +1998,57 @@ $('aSave').addEventListener('click', async ()=>{
     ? 'Unscheduled task added — awaiting approval.'
     : 'Scheduled task added.');
 });
-  
+
+/* ---------- Phase 7b: inline estimated-hours edit ---------- */
+function startHoursEdit(chip, taskId){
+  if (chip.querySelector('input')) return;          // already editing
+  const row = q('SELECT estimated_hours, task_status FROM tasks WHERE task_id = ?', [taskId]);
+  if (!row.length) return;
+  const old = row[0].estimated_hours;
+
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.inputMode = 'decimal';
+  inp.className = 'hedit';
+  inp.value = old != null ? old : '';
+  chip.innerHTML = '';
+  chip.appendChild(inp);
+  inp.focus();
+  inp.select();
+
+  let done = false;
+  const finish = async (commit)=>{
+    if (done) return;
+    done = true;
+    if (!commit){ renderTasks(); return; }
+
+    const raw = inp.value.trim();
+    let val = null;
+    if (raw !== ''){
+      const n = parseFloat(raw.replace(/[^\d.]/g,''));
+      val = isNaN(n) ? null : n;
+    }
+    if (val === (old == null ? null : old)){ renderTasks(); return; }   // unchanged
+
+    db.run('UPDATE tasks SET estimated_hours = ? WHERE task_id = ?', [val, taskId]);
+    db.run('INSERT INTO status_history (task_id, status, changed_by, notes) VALUES (?,?,?,?)',
+           [taskId, row[0].task_status || 'Not Started', currentUser || null,
+            'Estimated hours ' + (old == null ? '—' : old) +
+            ' → ' + (val == null ? '—' : val)]);
+    await save();
+    renderTasks();
+    renderDash();
+    showOk('Estimated hours updated.');
+  };
+
+  inp.addEventListener('keydown', (ev)=>{
+    if (ev.key === 'Enter'){ ev.preventDefault(); finish(true); }
+    if (ev.key === 'Escape'){ ev.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', ()=> finish(true));
+  inp.addEventListener('click', (ev)=> ev.stopPropagation());
+}
+
 boot();
 </script>
 </body>
