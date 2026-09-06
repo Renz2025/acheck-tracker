@@ -1176,7 +1176,9 @@ function renderTasks(){
       r.task_code ? esc(r.task_code) : '',
       r.logistics_status ? 'Log: ' + esc(r.logistics_status) : '',
       r.next_due ? 'Due ' + esc(r.next_due) : '',
-      (r.estimated_hours != null) ? r.estimated_hours + ' h' : ''
+      '<span class="hchip" data-hrs="' + r.task_id + '">' +
+        (r.estimated_hours != null ? r.estimated_hours + ' h' : 'set h') +
+      '</span>'
     ].filter(Boolean).join(' · ');
 
     let acts;
