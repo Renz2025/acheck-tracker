@@ -468,6 +468,11 @@
 </div>
 </main>
 
+<div id="swBar">
+  <span>A new version is ready.</span>
+  <button id="swReload">Reload</button>
+</div>
+
 <script src="./sql-wasm.js"></script>
 <script src="./xlsx.full.min.js"></script>
 <script>
@@ -1203,7 +1208,8 @@ function renderTasks(){
 
     const rows = q('SELECT task_id, task_no, sequence, description, task_status, ' +
                  'task_code, logistics_status, next_due, estimated_hours, ' +
-                 'task_type, approval ' +
+                 'task_type, approval, quoted, assigned_to, priority, ' +
+                 'mel_cdl_reference ' +
                  'FROM tasks WHERE ' + sql +
                  ' ORDER BY ' + orderBy() + ' LIMIT ' + (tLimit+1),
                  params);
@@ -2341,9 +2347,5 @@ function startPriorityEdit(chip, taskId){
   
 boot();
 </script>
-  <div id="swBar">
-    <span>A new version is ready.</span>
-    <button id="swReload">Reload</button>
-  </div>
 </body>
 </html>
