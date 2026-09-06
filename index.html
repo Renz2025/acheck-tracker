@@ -372,6 +372,47 @@
     <input type="file" id="fRestore" class="hide">
   </div>
 
+  <!-- ADD TASK SHEET -->
+  <div class="sheet" id="aSheet">
+    <div class="back" id="aBack"></div>
+    <div class="panel">
+      <h3>Add task</h3>
+      <label>Type</label>
+      <select id="aType">
+        <option value="non_routine">Unscheduled (NRT) — needs approval</option>
+        <option value="routine">Scheduled (routine)</option>
+      </select>
+      <label>Description <span class="req">*</span></label>
+      <textarea id="aDesc" placeholder="What was found and what is required…"
+                autocapitalize="sentences"></textarea>
+      <div class="row">
+        <div><label>Task no</label>
+          <input id="aNo" placeholder="e.g. NRT-014" autocapitalize="characters"></div>
+        <div><label>Sequence</label>
+          <input id="aSeq" inputmode="numeric" placeholder="sort order"></div>
+      </div>
+      <div id="aDupe"></div>
+      <div class="row">
+        <div><label>Task code</label><input id="aCode" autocapitalize="characters"></div>
+        <div><label>Estimated hours</label>
+          <input id="aHrs" inputmode="decimal" placeholder="e.g. 2.5"></div>
+      </div>
+      <div class="row">
+        <div><label>Logistics status</label><input id="aLog" autocapitalize="words"></div>
+        <div><label>Next due</label><input type="date" id="aDue"></div>
+      </div>
+      <label>Initial status</label>
+      <select id="aStat"></select>
+      <label>Comments</label>
+      <textarea id="aComments" placeholder="Reference, finding detail, raised by…"
+                autocapitalize="sentences"></textarea>
+      <div class="btns">
+        <button id="aSave">Add task</button>
+        <button class="ghost" id="aClose">Cancel</button>
+      </div>
+    </div>
+  </div>
+  
   <div class="sheet" id="dSheet">
   <div class="back" id="dBack"></div>
   <div class="panel">
